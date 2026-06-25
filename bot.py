@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import json
+from datetime import datetime, timedelta
 
 import gspread
 from google.oauth2.service_account import Credentials
@@ -33,6 +34,7 @@ spreadsheet = gc.open_by_key(SPREADSHEET_ID)
 attendance_sheet = spreadsheet.worksheet("Посещаемость")
 balances_sheet = spreadsheet.worksheet("Балансы")
 settings_sheet = spreadsheet.worksheet("Настройки")
+archive_sheet = spreadsheet.worksheet("Архив")
 
 
 def find_student(telegram_id: int):
@@ -78,6 +80,32 @@ def format_money(amount):
     return f"{amount:,.2f}".replace(",", " ").replace(".", ",") + " руб."
 
 
+WEEKDAYS = {
+    "понедельник": 0,
+    "вторник": 1,
+    "среда": 2,
+    "четверг": 3,
+    "пятница": 4,
+    "суббота": 5,
+    "воскресенье": 6,
+}
+
+
+def get_current_week_monday():
+    today = datetime.now()
+    return today - timedelta(days=today.weekday())
+
+
+def get_lesson_date(column_name):
+    name = str(column_name).strip().lower()
+
+    if name in WEEKDAYS:
+        monday = get_current_week_monday()
+        lesson_date = monday + timedelta(days=WEEKDAYS[name])
+        return lesson_date.strftime("%d.%m.%Y")
+
+    return str(column_name)
+
 def build_history(student):
     lessons = []
 
@@ -108,7 +136,7 @@ def build_history(student):
         if value == "1":
             lessons.append(
                 {
-                    "date": column,
+                    "date": get_lesson_date(column),
                     "title": "Проведено",
                     "price": lesson_price,
                     "need_pay": True,
@@ -119,7 +147,7 @@ def build_history(student):
         elif value == "$":
             lessons.append(
                 {
-                    "date": column,
+                    "date": get_lesson_date(column),
                     "title": "Дополнительное занятие / перенос",
                     "price": lesson_price,
                     "need_pay": True,
@@ -130,7 +158,7 @@ def build_history(student):
         elif value == "-":
             lessons.append(
                 {
-                    "date": column,
+                   "date": get_lesson_date(column),
                     "title": "Поздняя отмена",
                     "price": lesson_price,
                     "need_pay": True,
@@ -141,7 +169,7 @@ def build_history(student):
         elif value == "0":
             lessons.append(
                 {
-                    "date": column,
+                   "date": get_lesson_date(column),
                     "title": "Отмена заранее",
                     "price": 0,
                     "need_pay": False,
