@@ -194,16 +194,16 @@ def archive_current_week():
         name = row.get("Имя ученика", "")
         group = row.get("Группа", "")
         duration = row.get("Длительность", "")
-
         lesson_price = get_lesson_price(group, duration)
 
         for col_number, header in enumerate(headers, start=1):
-            day_name = str(header).strip().lower()
+            header_clean = str(header).strip()
+            day_name = header_clean.lower()
 
             if day_name not in WEEKDAYS:
                 continue
 
-            mark = str(row.get(header, "")).strip()
+            mark = str(row.get(header_clean, "")).strip()
 
             if mark == "":
                 continue
@@ -239,10 +239,7 @@ def archive_current_week():
             cells_to_clear.append((row_number, col_number))
 
     if archive_rows:
-        archive_sheet.append_rows(
-            archive_rows,
-            value_input_option="USER_ENTERED"
-        )
+        archive_sheet.append_rows(archive_rows, value_input_option="USER_ENTERED")
 
     for row_number, col_number in cells_to_clear:
         attendance_sheet.update_cell(row_number, col_number, "")
@@ -453,6 +450,26 @@ async def admin_panel(message: Message):
 
 @dp.callback_query(F.data == "archive_week")
 async def archive_week(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Да, перенести", callback_data="archive_week_confirm")
+    kb.button(text="🏠 В главное меню", callback_data="menu")
+    kb.adjust(1)
+
+    await callback.message.edit_text(
+        "Вы точно хотите перенести текущую неделю в Архив?\n\n"
+        "После этого отметки в листе «Посещаемость» будут очищены.",
+        reply_markup=kb.as_markup()
+    )
+
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "archive_week_confirm")
+async def archive_week_confirm(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("Недоступно.", show_alert=True)
         return
