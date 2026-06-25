@@ -86,24 +86,6 @@ def get_student_balance(telegram_id):
 
     return 0
 
-
-def get_lesson_price(group_name, duration):
-
-    rows = settings_sheet.get_all_records()
-
-    for row in rows:
-
-        if str(row["Формат"]).strip() == str(group_name).strip():
-
-            duration = str(duration)
-
-            value = row.get(duration)
-
-            if value:
-                return int(value)
-
-    return 0
-
 def build_history(student):
 
     result = []
@@ -120,8 +102,8 @@ def build_history(student):
 
     for column, value in student.items():
 
-        if "." not in str(column):
-            continue
+        if column in ["ID ученика", "Имя ученика", "Группа", "Длительность", "Макс. кол-во занятий"]:
+    continue
 
         value = str(value).strip()
 
@@ -228,11 +210,13 @@ async def start(message: Message):
 @dp.callback_query(F.data == "history")
 async def history(callback: CallbackQuery):
 
-    student = find_student(
-        callback.from_user.id
-    )
+   rows = attendance_sheet.get_all_records()
 
-    history_data, debt = build_history(student)
+student = None
+for row in rows:
+    if str(row["ID ученика"]) == str(callback.from_user.id):
+        student = row
+        break
 
     if not history_data:
 
