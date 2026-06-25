@@ -852,6 +852,36 @@ async def admin_back(callback: CallbackQuery):
 
     await callback.answer()
 
+@dp.callback_query(F.data.startswith("mark_attendance:"))
+async def mark_attendance(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
+
+    student_id = callback.data.split(":")[1]
+
+    kb = InlineKeyboardBuilder()
+
+    for day in WEEKDAYS.keys():
+        kb.button(
+            text=day.capitalize(),
+            callback_data=f"mark_day:{student_id}:{day}"
+        )
+
+    kb.button(
+        text="⬅️ Назад к ученику",
+        callback_data=f"student:{student_id}"
+    )
+
+    kb.adjust(2, 2, 2, 1)
+
+    await callback.message.edit_text(
+        "Выберите день недели:",
+        reply_markup=kb.as_markup()
+    )
+
+    await callback.answer()
+
 
 async def main():
     await dp.start_polling(bot)
