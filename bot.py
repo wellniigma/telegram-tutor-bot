@@ -854,10 +854,11 @@ async def student_card(callback: CallbackQuery):
         f"❗ Долг: {format_money(debt)}"
     )
 
-    kb = InlineKeyboardBuilder()
-    kb.button(text="⬅️ К списку учеников", callback_data="admin_students")
-    kb.button(text="🏠 В админку", callback_data="admin_back")
-    kb.adjust(1)
+  kb = InlineKeyboardBuilder()
+kb.button(text="📅 Отметить посещение", callback_data=f"mark_attendance:{student_id}")
+kb.button(text="⬅️ К списку учеников", callback_data="admin_students")
+kb.button(text="🏠 В админку", callback_data="admin_back")
+kb.adjust(1)
 
     await callback.message.edit_text(
         text,
