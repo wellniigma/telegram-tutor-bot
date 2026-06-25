@@ -249,8 +249,11 @@ def archive_current_week():
 
 def admin_menu():
     kb = InlineKeyboardBuilder()
+
+    kb.button(text="👥 Список должников", callback_data="admin_debts")
     kb.button(text="📂 Перенести неделю в Архив", callback_data="archive_week")
     kb.button(text="🏠 В главное меню", callback_data="menu")
+
     kb.adjust(1)
     return kb.as_markup()
 
@@ -493,6 +496,45 @@ async def admin_panel(message: Message):
         reply_markup=admin_menu()
     )
 
+@dp.callback_query(F.data == "admin_debts")
+async def admin_debts(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
+
+    rows = attendance_sheet.get_all_records()
+
+    text = "👥 Список должников\n\n"
+    has_debts = False
+
+    for student in rows:
+        student_id = student.get("ID ученика")
+        name = student.get("Имя ученика", "Без имени")
+
+        if not student_id:
+            continue
+
+        lessons, chargeable_total = build_history(student)
+        balance = get_student_balance(student_id)
+        debt = max(chargeable_total - balance, 0)
+
+        if debt > 0:
+            has_debts = True
+            text += (
+                f"🔸 {name}\n"
+                f"ID: {student_id}\n"
+                f"Долг: {format_money(debt)}\n\n"
+            )
+
+    if not has_debts:
+        text += "Сейчас должников нет 🎉"
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=admin_menu()
+    )
+
+    await callback.answer()
 
 @dp.callback_query(F.data == "archive_week")
 async def archive_week(callback: CallbackQuery):
