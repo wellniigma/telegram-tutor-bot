@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import json
-from io import StringIO
 
 import gspread
 from google.oauth2.service_account import Credentials
@@ -20,24 +19,13 @@ SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# ------------------------
-# Google Sheets
-# ------------------------
-
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
+    "https://www.googleapis.com/auth/drive",
 ]
 
-google_credentials = json.loads(
-    os.getenv("GOOGLE_CREDENTIALS")
-)
-
-creds = Credentials.from_service_account_info(
-    google_credentials,
-    scopes=SCOPES
-)
-
+google_credentials = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
+creds = Credentials.from_service_account_info(google_credentials, scopes=SCOPES)
 gc = gspread.authorize(creds)
 
 spreadsheet = gc.open_by_key(SPREADSHEET_ID)
@@ -46,64 +34,71 @@ attendance_sheet = spreadsheet.worksheet("Посещаемость")
 balances_sheet = spreadsheet.worksheet("Балансы")
 settings_sheet = spreadsheet.worksheet("Настройки")
 
-# ------------------------
-# Helpers
-# ------------------------
 
 def find_student(telegram_id: int):
     rows = attendance_sheet.get_all_records()
 
     for row in rows:
-        if str(row["ID ученика"]) == str(telegram_id):
+        if str(row.get("ID ученика", "")).strip() == str(telegram_id):
             return row
 
     return None
 
-def get_lesson_price(group_name, duration):
 
+def get_lesson_price(group_name, duration):
     rows = settings_sheet.get_all_records()
 
     for row in rows:
-
-        if str(row["Формат"]).strip() == str(group_name).strip():
-
+        if str(row.get("Формат", "")).strip() == str(group_name).strip():
             value = row.get(str(duration))
 
-            if value not in ("", None):
+            if value not in ("", None, "-"):
                 return int(value)
 
     return 0
 
-def get_student_balance(telegram_id):
 
+def get_student_balance(telegram_id):
     rows = balances_sheet.get_all_records()
 
     for row in rows:
+        if str(row.get("ID ученика", "")).strip() == str(telegram_id):
+            value = row.get("Баланс", 0)
 
-        if str(row["ID ученика"]) == str(telegram_id):
+            if value in ("", None):
+                return 0
 
-            return float(row["Баланс"])
+            return float(value)
 
     return 0
 
+
+def format_money(amount):
+    amount = float(amount)
+    return f"{amount:,.2f}".replace(",", " ").replace(".", ",") + " руб."
+
+
 def build_history(student):
+    lessons = []
 
-    result = []
+    group_name = student.get("Группа")
+    duration = student.get("Длительность")
 
-    group_name = student["Группа"]
-    duration = student["Длительность"]
+    lesson_price = get_lesson_price(group_name, duration)
 
-    lesson_price = get_lesson_price(
-        group_name,
-        duration
-    )
+    chargeable_total = 0
 
-    debt = 0
+    skip_columns = [
+        "ID ученика",
+        "Имя ученика",
+        "Группа",
+        "Длительность",
+        "Макс. кол-во занятий",
+    ]
 
     for column, value in student.items():
-
-        if column in ["ID ученика", "Имя ученика", "Группа", "Длительность", "Макс. кол-во занятий"]:
-    continue
+        if column in skip_columns:
+            continue
 
         value = str(value).strip()
 
@@ -111,191 +106,249 @@ def build_history(student):
             continue
 
         if value == "1":
-
-            debt += lesson_price
-
-            result.append({
-                "date": column,
-                "status": "Проведено",
-                "price": lesson_price,
-                "need_pay": True
-            })
+            lessons.append(
+                {
+                    "date": column,
+                    "title": "Проведено",
+                    "price": lesson_price,
+                    "need_pay": True,
+                }
+            )
+            chargeable_total += lesson_price
 
         elif value == "$":
-
-            debt += lesson_price
-
-            result.append({
-                "date": column,
-                "status": "Дополнительное занятие",
-                "price": lesson_price,
-                "need_pay": True
-            })
+            lessons.append(
+                {
+                    "date": column,
+                    "title": "Дополнительное занятие / перенос",
+                    "price": lesson_price,
+                    "need_pay": True,
+                }
+            )
+            chargeable_total += lesson_price
 
         elif value == "-":
-
-            debt += lesson_price
-
-            result.append({
-                "date": column,
-                "status": "Поздняя отмена",
-                "price": lesson_price,
-                "need_pay": True
-            })
+            lessons.append(
+                {
+                    "date": column,
+                    "title": "Поздняя отмена",
+                    "price": lesson_price,
+                    "need_pay": True,
+                }
+            )
+            chargeable_total += lesson_price
 
         elif value == "0":
+            lessons.append(
+                {
+                    "date": column,
+                    "title": "Отмена заранее",
+                    "price": 0,
+                    "need_pay": False,
+                }
+            )
 
-            result.append({
-                "date": column,
-                "status": "Отмена заранее",
-                "price": 0,
-                "need_pay": False
-            })
+    return lessons, chargeable_total
 
-    return result, debt
-
-# ------------------------
-# Main menu
-# ------------------------
 
 def main_menu():
     kb = InlineKeyboardBuilder()
-
-    kb.button(
-        text="📝 Прошедшие занятия",
-        callback_data="history"
-    )
-
-    kb.button(
-        text="💳 Оплатить занятия",
-        callback_data="payment"
-    )
-
+    kb.button(text="📝 Прошедшие занятия", callback_data="history")
+    kb.button(text="💳 Оплатить занятия", callback_data="payment")
     kb.adjust(1)
-
     return kb.as_markup()
 
-# ------------------------
-# Start
-# ------------------------
+
+def back_menu():
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🏠 В главное меню", callback_data="menu")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def get_main_text():
+    return (
+        "Здравствуйте! Я очень полезный бот, который поможет:\n\n"
+        "📝 Узнать количество посещённых занятий\n\n"
+        "💳 Оплатить занятия\n\n"
+        "📌 Быть в курсе новостей\n\n"
+        "📨 Получать уведомления"
+    )
+
 
 @dp.message(Command("start"))
 async def start(message: Message):
-
     student = find_student(message.from_user.id)
 
     if not student:
         await message.answer(
-            "Ваш Telegram ID не найден в таблице.\n\nСвяжитесь с преподавателем."
+            "Ваш Telegram ID не найден в таблице.\n\n"
+            f"Ваш ID: {message.from_user.id}\n\n"
+            "Свяжитесь с преподавателем."
         )
         return
 
-    text = (
-        "Здравствуйте! Я очень полезный бот, который поможет:\n\n"
-        "📝 Узнать количество посещённых занятий\n\n"
-        "💳 Оплатить занятия\n\n"
-        "📌 Быть в курсе новостей\n\n"
-        "📨 Получать уведомления"
-    )
+    await message.answer(get_main_text(), reply_markup=main_menu())
 
-    await message.answer(
-        text,
-        reply_markup=main_menu()
-    )
 
-# ------------------------
-# History
-# ------------------------
+@dp.callback_query(F.data == "menu")
+async def menu(callback: CallbackQuery):
+    await callback.message.edit_text(get_main_text(), reply_markup=main_menu())
+    await callback.answer()
+
 
 @dp.callback_query(F.data == "history")
 async def history(callback: CallbackQuery):
+    student = find_student(callback.from_user.id)
 
-   rows = attendance_sheet.get_all_records()
-
-student = None
-for row in rows:
-    if str(row["ID ученика"]) == str(callback.from_user.id):
-        student = row
-        break
-
-    if not history_data:
-
+    if not student:
         await callback.message.edit_text(
-            "История занятий пока отсутствует.",
-            reply_markup=main_menu()
+            "Ваш Telegram ID не найден в таблице.",
+            reply_markup=back_menu(),
         )
-
         await callback.answer()
         return
 
-    text = ""
+    lessons, chargeable_total = build_history(student)
+    balance = get_student_balance(callback.from_user.id)
+    debt = max(chargeable_total - balance, 0)
 
-    for item in history_data:
+    if not lessons:
+        await callback.message.edit_text(
+            "История занятий пока отсутствует.",
+            reply_markup=back_menu(),
+        )
+        await callback.answer()
+        return
+
+    remaining_balance = balance
+    text = "📚 История занятий\n\n"
+
+    for item in lessons:
+        if item["need_pay"]:
+            if remaining_balance >= item["price"]:
+                payment_status = "✅ Оплачено"
+                remaining_balance -= item["price"]
+            else:
+                payment_status = "🟡 Ожидает оплаты"
+        else:
+            payment_status = "🔴 Не оплачивается"
 
         text += (
-            f"{item['status']}\n"
-            f"Обществознание\n"
-            f"{item['date']}\n"
-            f"{item['price']} руб.\n\n"
+            f"{payment_status}\n"
+            f"Предмет: Обществознание\n"
+            f"Тип: {item['title']}\n"
+            f"Дата: {item['date']}\n"
+            f"Стоимость: {format_money(item['price'])}\n\n"
         )
 
-    text += f"\nОбщая задолженность: {debt} руб."
+    text += "──────────────\n"
+    text += f"Ваш баланс: {format_money(balance)}\n"
+    text += f"Общая задолженность: {format_money(debt)}"
+
+    await callback.message.edit_text(text, reply_markup=back_menu())
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "payment")
+async def payment(callback: CallbackQuery):
+    student = find_student(callback.from_user.id)
+
+    if not student:
+        await callback.message.edit_text(
+            "Ваш Telegram ID не найден в таблице.",
+            reply_markup=back_menu(),
+        )
+        await callback.answer()
+        return
+
+    lessons, chargeable_total = build_history(student)
+    balance = get_student_balance(callback.from_user.id)
+    debt = max(chargeable_total - balance, 0)
+
+    text = "💳 Оплатить занятия\n\n"
+
+    if debt <= 0:
+        text += (
+            "Сейчас задолженности нет.\n\n"
+            f"Ваш баланс: {format_money(balance)}"
+        )
+    else:
+        text += "Ожидают оплаты:\n\n"
+
+        remaining_balance = balance
+        number = 1
+
+        for item in lessons:
+            if not item["need_pay"]:
+                continue
+
+            if remaining_balance >= item["price"]:
+                remaining_balance -= item["price"]
+                continue
+
+            text += (
+                f"{number}. {item['date']} | "
+                f"{item['title']} | "
+                f"{format_money(item['price'])}\n"
+            )
+            number += 1
+
+        text += f"\nВаш баланс: {format_money(balance)}"
+        text += f"\nК оплате: {format_money(debt)}"
 
     kb = InlineKeyboardBuilder()
 
     kb.button(
-        text="🏠 В главное меню",
-        callback_data="menu"
+        text="💳 Пополнить счёт (указать сумму)",
+        callback_data="pay_custom",
     )
 
+    if debt > 0:
+        kb.button(
+            text=f"💳 Пополнить счёт на {format_money(debt)}",
+            callback_data=f"pay_debt:{int(debt)}",
+        )
+
+    kb.button(text="🏠 В главное меню", callback_data="menu")
+    kb.adjust(1)
+
+    await callback.message.edit_text(text, reply_markup=kb.as_markup())
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "pay_custom")
+async def pay_custom(callback: CallbackQuery):
     await callback.message.edit_text(
-        text,
-        reply_markup=kb.as_markup()
+        "Введите сумму, на которую хотите пополнить баланс.\n\n"
+        "Пока ввод суммы подключим следующим шагом.",
+        reply_markup=back_menu(),
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("pay_debt:"))
+async def pay_debt(callback: CallbackQuery):
+    amount = callback.data.split(":")[1]
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="💳 Оплатить", url="https://example.com")
+    kb.button(text="🏠 В главное меню", callback_data="menu")
+    kb.adjust(1)
+
+    await callback.message.edit_text(
+        "Спасибо, что остаётесь со мной 💗\n\n"
+        "Оплата доступна по кнопке ниже ⬇️\n\n"
+        f"Сумма: {format_money(amount)}",
+        reply_markup=kb.as_markup(),
     )
 
     await callback.answer()
-# ------------------------
-# Main menu button
-# ------------------------
 
-@dp.callback_query(F.data == "menu")
-async def menu(callback: CallbackQuery):
-
-    text = (
-        "Здравствуйте! Я очень полезный бот, который поможет:\n\n"
-        "📝 Узнать количество посещённых занятий\n\n"
-        "💳 Оплатить занятия\n\n"
-        "📌 Быть в курсе новостей\n\n"
-        "📨 Получать уведомления"
-    )
-
-    await callback.message.edit_text(
-        text,
-        reply_markup=main_menu()
-    )
-
-    await callback.answer()
-    
-# ------------------------
-# Payment
-# ------------------------
-
-@dp.callback_query(F.data == "payment")
-async def payment(callback: CallbackQuery):
-
-    await callback.message.edit_text(
-        "💳 Раздел оплаты появится на следующем этапе.",
-        reply_markup=main_menu()
-    )
-
-    await callback.answer()
-
-# ------------------------
-# Run
-# ------------------------
 
 async def main():
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
