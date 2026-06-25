@@ -925,12 +925,30 @@ async def mark_day(callback: CallbackQuery):
 
     kb = InlineKeyboardBuilder()
 
-    kb.button(text="✅ Проведено", callback_data=f"set_mark:{student_id}:{day}:1")
-    kb.button(text="❌ Отмена заранее", callback_data=f"set_mark:{student_id}:{day}:0")
-    kb.button(text="⏰ Поздняя отмена", callback_data=f"set_mark:{student_id}:{day}:-")
-    kb.button(text="➕ Доп. занятие / перенос", callback_data=f"set_mark:{student_id}:{day}:$")
-    kb.button(text="🧹 Очистить отметку", callback_data=f"set_mark:{student_id}:{day}:clear")
-    kb.button(text="⬅️ Назад", callback_data=f"mark_attendance:{student_id}")
+    kb.button(
+        text="✅ Проведено",
+        callback_data=f"set_mark:{student_id}:{day}:1"
+    )
+
+    kb.button(
+        text="❌ Отмена заранее",
+        callback_data=f"set_mark:{student_id}:{day}:0"
+    )
+
+    kb.button(
+        text="⏰ Поздняя отмена",
+        callback_data=f"set_mark:{student_id}:{day}:-"
+    )
+
+    kb.button(
+        text="➕ Доп. занятие / перенос",
+        callback_data=f"set_mark:{student_id}:{day}:$"
+    )
+
+    kb.button(
+        text="⬅️ Назад",
+        callback_data=f"mark_attendance:{student_id}"
+    )
 
     kb.adjust(1)
 
@@ -941,7 +959,6 @@ async def mark_day(callback: CallbackQuery):
 
     await callback.answer()
 
-
 @dp.callback_query(F.data.startswith("set_mark:"))
 async def set_mark(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
@@ -949,67 +966,6 @@ async def set_mark(callback: CallbackQuery):
         return
 
     _, student_id, day, mark = callback.data.split(":")
-
-    if mark == "clear":
-        mark = ""
-
-    rows = attendance_sheet.get_all_records()
-    headers = attendance_sheet.row_values(1)
-
-    row_number = None
-    col_number = None
-
-    for index, row in enumerate(rows, start=2):
-        if str(row.get("ID ученика", "")).strip() == str(student_id):
-            row_number = index
-            break
-
-    for index, header in enumerate(headers, start=1):
-        if str(header).strip().lower() == day:
-            col_number = index
-            break
-
-    if row_number is None or col_number is None:
-        await callback.message.edit_text(
-            "Не удалось найти ученика или день недели.",
-            reply_markup=admin_menu()
-        )
-        await callback.answer()
-        return
-
-    attendance_sheet.update_cell(row_number, col_number, mark)
-
-    mark_names = {
-        "1": "✅ Проведено",
-        "0": "❌ Отмена заранее",
-        "-": "⏰ Поздняя отмена",
-        "$": "➕ Дополнительное занятие",
-        "": "🧹 Отметка очищена"
-    }
-
-    kb = InlineKeyboardBuilder()
-    kb.button(text="⬅️ Вернуться к ученику", callback_data=f"student:{student_id}")
-    kb.button(text="🏠 В админку", callback_data="admin_back")
-    kb.adjust(1)
-
-    await callback.message.edit_text(
-        f"Готово!\n\n"
-        f"{day.capitalize()}\n"
-        f"{mark_names[mark]}",
-        reply_markup=kb.as_markup()
-    )
-
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("set_mark:"))
-async def set_mark(callback: CallbackQuery):
-    if callback.from_user.id != ADMIN_ID:
-        await callback.answer("Недоступно.", show_alert=True)
-        return
-
-   _, student_id, day, mark = callback.data.split(":")
-if mark == "clear":
-    mark = ""
 
     rows = attendance_sheet.get_all_records()
     headers = attendance_sheet.row_values(1)
@@ -1044,8 +1000,7 @@ if mark == "clear":
         "1": "✅ Проведено",
         "0": "❌ Отмена заранее",
         "-": "⏰ Поздняя отмена",
-        "$": "➕ Дополнительное занятие",
-        "": "🧹 Отметка очищена"
+        "$": "➕ Дополнительное занятие"
     }
 
     kb = InlineKeyboardBuilder()
