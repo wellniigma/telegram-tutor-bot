@@ -915,6 +915,50 @@ async def mark_attendance(callback: CallbackQuery):
 
     await callback.answer()
 
+@dp.callback_query(F.data.startswith("mark_day:"))
+async def mark_day(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
+
+    _, student_id, day = callback.data.split(":")
+
+    kb = InlineKeyboardBuilder()
+
+    kb.button(
+        text="✅ Проведено",
+        callback_data=f"set_mark:{student_id}:{day}:1"
+    )
+
+    kb.button(
+        text="❌ Отмена заранее",
+        callback_data=f"set_mark:{student_id}:{day}:0"
+    )
+
+    kb.button(
+        text="⏰ Поздняя отмена",
+        callback_data=f"set_mark:{student_id}:{day}:-"
+    )
+
+    kb.button(
+        text="➕ Доп. занятие / перенос",
+        callback_data=f"set_mark:{student_id}:{day}:$"
+    )
+
+    kb.button(
+        text="⬅️ Назад",
+        callback_data=f"mark_attendance:{student_id}"
+    )
+
+    kb.adjust(1)
+
+    await callback.message.edit_text(
+        f"Выберите отметку для дня: {day}",
+        reply_markup=kb.as_markup()
+    )
+
+    await callback.answer()
+
 
 async def main():
     await dp.start_polling(bot)
