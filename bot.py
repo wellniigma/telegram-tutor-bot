@@ -13,9 +13,21 @@ bot = Bot(token=os.getenv("BOT_TOKEN"))
 dp = Dispatcher()
 
 
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+
 @dp.message(Command("start"))
 async def start(message: Message):
-    await message.answer("Бот работает в облаке ✅")
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="💳 Оплатить занятие")]
+        ],
+        resize_keyboard=True
+    )
+
+    await message.answer(
+        "Здравствуйте! Выберите действие:",
+        reply_markup=keyboard
+    )
 
 
 @dp.message()
