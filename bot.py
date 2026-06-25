@@ -249,6 +249,7 @@ def archive_current_week():
 
 def admin_menu():
     kb = InlineKeyboardBuilder()
+    kb.button(text="👥 Все ученики", callback_data="admin_students")
     kb.button(text="👥 Список должников", callback_data="admin_debts")
     kb.button(text="📊 Статистика", callback_data="admin_stats")
     kb.button(text="📂 Перенести неделю в Архив", callback_data="archive_week")
@@ -777,6 +778,45 @@ async def admin_stats(callback: CallbackQuery):
         f"💰 Начислено: {format_money(total_chargeable)}\n"
         f"❗ Общий долг: {format_money(total_debt)}"
     )
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=admin_menu()
+    )
+
+    await callback.answer()
+
+@dp.callback_query(F.data == "admin_students")
+async def admin_students(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
+
+    rows = attendance_sheet.get_all_records()
+
+    text = "👥 Все ученики\n\n"
+
+    for student in rows:
+        student_id = student.get("ID ученика")
+        name = student.get("Имя ученика", "Без имени")
+        group = student.get("Группа", "")
+        duration = student.get("Длительность", "")
+
+        if not student_id:
+            continue
+
+        lessons, chargeable_total = build_history(student)
+        balance = get_student_balance(student_id)
+        debt = max(chargeable_total - balance, 0)
+
+        text += (
+            f"👤 {name}\n"
+            f"ID: {student_id}\n"
+            f"Группа: {group}\n"
+            f"Длительность: {duration}\n"
+            f"Баланс: {format_money(balance)}\n"
+            f"Долг: {format_money(debt)}\n\n"
+        )
 
     await callback.message.edit_text(
         text,
