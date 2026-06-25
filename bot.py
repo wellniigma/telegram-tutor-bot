@@ -945,6 +945,11 @@ async def mark_day(callback: CallbackQuery):
         callback_data=f"set_mark:{student_id}:{day}:$"
     )
 
+        kb.button(
+        text="🧹 Очистить отметку",
+        callback_data=f"set_mark:{student_id}:{day}:clear"
+    )
+
     kb.button(
         text="⬅️ Назад",
         callback_data=f"mark_attendance:{student_id}"
@@ -965,7 +970,9 @@ async def set_mark(callback: CallbackQuery):
         await callback.answer("Недоступно.", show_alert=True)
         return
 
-    _, student_id, day, mark = callback.data.split(":")
+   _, student_id, day, mark = callback.data.split(":")
+if mark == "clear":
+    mark = ""
 
     rows = attendance_sheet.get_all_records()
     headers = attendance_sheet.row_values(1)
@@ -1000,7 +1007,8 @@ async def set_mark(callback: CallbackQuery):
         "1": "✅ Проведено",
         "0": "❌ Отмена заранее",
         "-": "⏰ Поздняя отмена",
-        "$": "➕ Дополнительное занятие"
+        "$": "➕ Дополнительное занятие",
+        "": "🧹 Отметка очищена"
     }
 
     kb = InlineKeyboardBuilder()
