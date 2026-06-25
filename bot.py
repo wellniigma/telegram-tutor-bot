@@ -818,24 +818,57 @@ async def admin_students(callback: CallbackQuery):
 
     await callback.answer()
 
-    kb = InlineKeyboardBuilder()
+@dp.callback_query(F.data.startswith("student:"))
+async def student_card(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
 
+    student_id = callback.data.split(":")[1]
+    student = find_student(student_id)
+
+    if not student:
+        await callback.message.edit_text(
+            "Ученик не найден.",
+            reply_markup=admin_menu()
+        )
+        await callback.answer()
+        return
+
+    name = student.get("Имя ученика", "Без имени")
+    group = student.get("Группа", "")
+    duration = student.get("Длительность", "")
+
+    lessons, chargeable_total = build_history(student)
+    balance = get_student_balance(student_id)
+    debt = max(chargeable_total - balance, 0)
+
+    text = (
+        "👤 Карточка ученика\n\n"
+        f"Имя: {name}\n"
+        f"ID: {student_id}\n"
+        f"Группа: {group}\n"
+        f"Длительность: {duration} мин.\n\n"
+        f"📚 Занятий на этой неделе: {len(lessons)}\n"
+        f"💳 Баланс: {format_money(balance)}\n"
+        f"❗ Долг: {format_money(debt)}"
+    )
+
+    kb = InlineKeyboardBuilder()
     kb.button(
         text="📅 Отметить посещение",
         callback_data=f"mark_attendance:{student_id}"
     )
-
-    kb.button(
-        text="⬅️ К списку учеников",
-        callback_data="admin_students"
-    )
-
-    kb.button(
-        text="🏠 В админку",
-        callback_data="admin_back"
-    )
-
+    kb.button(text="⬅️ К списку учеников", callback_data="admin_students")
+    kb.button(text="🏠 В админку", callback_data="admin_back")
     kb.adjust(1)
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=kb.as_markup()
+    )
+
+    await callback.answer()
 
 
 @dp.callback_query(F.data == "admin_back")
