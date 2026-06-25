@@ -59,6 +59,33 @@ def find_student(telegram_id: int):
 
     return None
 
+def get_lesson_price(group_name, duration):
+
+    rows = settings_sheet.get_all_records()
+
+    for row in rows:
+
+        if str(row["Формат"]).strip() == str(group_name).strip():
+
+            value = row.get(str(duration))
+
+            if value not in ("", None):
+                return int(value)
+
+    return 0
+
+def get_student_balance(telegram_id):
+
+    rows = balances_sheet.get_all_records()
+
+    for row in rows:
+
+        if str(row["ID ученика"]) == str(telegram_id):
+
+            return float(row["Баланс"])
+
+    return 0
+
 
 def get_lesson_price(group_name, duration):
 
