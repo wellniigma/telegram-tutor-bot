@@ -794,33 +794,26 @@ async def admin_students(callback: CallbackQuery):
 
     rows = attendance_sheet.get_all_records()
 
-    text = "👥 Все ученики\n\n"
+    kb = InlineKeyboardBuilder()
 
     for student in rows:
         student_id = student.get("ID ученика")
         name = student.get("Имя ученика", "Без имени")
-        group = student.get("Группа", "")
-        duration = student.get("Длительность", "")
 
         if not student_id:
             continue
 
-        lessons, chargeable_total = build_history(student)
-        balance = get_student_balance(student_id)
-        debt = max(chargeable_total - balance, 0)
-
-        text += (
-            f"👤 {name}\n"
-            f"ID: {student_id}\n"
-            f"Группа: {group}\n"
-            f"Длительность: {duration}\n"
-            f"Баланс: {format_money(balance)}\n"
-            f"Долг: {format_money(debt)}\n\n"
+        kb.button(
+            text=f"👤 {name}",
+            callback_data=f"student:{student_id}"
         )
 
+    kb.button(text="🏠 В админку", callback_data="admin_back")
+    kb.adjust(1)
+
     await callback.message.edit_text(
-        text,
-        reply_markup=admin_menu()
+        "👥 Выберите ученика:",
+        reply_markup=kb.as_markup()
     )
 
     await callback.answer()
