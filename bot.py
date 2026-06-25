@@ -115,13 +115,68 @@ async def start(message: Message):
 @dp.callback_query(F.data == "history")
 async def history(callback: CallbackQuery):
 
+    text = (
+        "Ожидает оплаты\n"
+        "Предмет: Обществознание\n"
+        "Дата: 20 сентября\n"
+        "Стоимость: 2400 руб.\n\n"
+
+        "Оплачено\n"
+        "Предмет: Обществознание\n"
+        "Дата: 17 сентября\n"
+        "Стоимость: 2400 руб.\n\n"
+
+        "Общая задолженность: 2400 руб.\n\n"
+
+        "Страница 1"
+    )
+
+    kb = InlineKeyboardBuilder()
+
+    kb.button(text="⬅️", callback_data="left")
+    kb.button(text="➡️", callback_data="right")
+
+    kb.button(
+        text="🔝 В начало списка",
+        callback_data="top"
+    )
+
+    kb.button(
+        text="🏠 В главное меню",
+        callback_data="menu"
+    )
+
+    kb.adjust(2, 1, 1)
+
     await callback.message.edit_text(
-        "📚 История занятий появится на следующем этапе.",
-        reply_markup=main_menu()
+        text,
+        reply_markup=kb.as_markup()
     )
 
     await callback.answer()
 
+# ------------------------
+# Main menu button
+# ------------------------
+
+@dp.callback_query(F.data == "menu")
+async def menu(callback: CallbackQuery):
+
+    text = (
+        "Здравствуйте! Я очень полезный бот, который поможет:\n\n"
+        "📝 Узнать количество посещённых занятий\n\n"
+        "💳 Оплатить занятия\n\n"
+        "📌 Быть в курсе новостей\n\n"
+        "📨 Получать уведомления"
+    )
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=main_menu()
+    )
+
+    await callback.answer()
+    
 # ------------------------
 # Payment
 # ------------------------
