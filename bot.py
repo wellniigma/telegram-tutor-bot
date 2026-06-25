@@ -301,32 +301,24 @@ async def menu(callback: CallbackQuery):
     await callback.answer()
 
 
-@dp.callback_query(F.data == "history")
-async def history(callback: CallbackQuery):
-    student = find_student(callback.from_user.id)
+LESSONS_PER_PAGE = 4
+
+
+def build_history_text(user_id, page=0):
+    student = find_student(user_id)
 
     if not student:
-        await callback.message.edit_text(
-            "Ваш Telegram ID не найден в таблице.",
-            reply_markup=back_menu(),
-        )
-        await callback.answer()
-        return
+        return "Ваш Telegram ID не найден в таблице.", back_menu()
 
     lessons, chargeable_total = build_history(student)
-    balance = get_student_balance(callback.from_user.id)
+    balance = get_student_balance(user_id)
     debt = max(chargeable_total - balance, 0)
 
     if not lessons:
-        await callback.message.edit_text(
-            "История занятий пока отсутствует.",
-            reply_markup=back_menu(),
-        )
-        await callback.answer()
-        return
+        return "История занятий пока отсутствует.", back_menu()
 
     remaining_balance = balance
-    text = "📚 История занятий\n\n"
+    prepared = []
 
     for item in lessons:
         if item["need_pay"]:
@@ -338,21 +330,76 @@ async def history(callback: CallbackQuery):
         else:
             payment_status = "🔴 Не оплачивается"
 
+        prepared.append({
+            **item,
+            "payment_status": payment_status
+        })
+
+    total_pages = max((len(prepared) - 1) // LESSONS_PER_PAGE + 1, 1)
+
+    if page < 0:
+        page = 0
+
+    if page >= total_pages:
+        page = total_pages - 1
+
+    start = page * LESSONS_PER_PAGE
+    end = start + LESSONS_PER_PAGE
+
+    page_items = prepared[start:end]
+
+    text = "📚 История занятий\n\n"
+
+    for item in page_items:
         text += (
-            f"{payment_status}\n"
-            f"Предмет: Обществознание\n"
-            f"Тип: {item['title']}\n"
-            f"Дата: {item['date']}\n"
-            f"Стоимость: {format_money(item['price'])}\n\n"
+            f"{item['payment_status']}\n\n"
+            f"📖 Предмет: Обществознание\n"
+            f"📌 Тип: {item['title']}\n"
+            f"📅 Дата: {item['date']}\n"
+            f"💰 Стоимость: {format_money(item['price'])}\n\n"
+            "──────────────\n\n"
         )
 
-    text += "──────────────\n"
-    text += f"Ваш баланс: {format_money(balance)}\n"
-    text += f"Общая задолженность: {format_money(debt)}"
+    text += f"💳 Ваш баланс: {format_money(balance)}\n"
+    text += f"❗ Общая задолженность: {format_money(debt)}\n\n"
+    text += f"Страница {page + 1} из {total_pages}"
 
-    await callback.message.edit_text(text, reply_markup=back_menu())
+    kb = InlineKeyboardBuilder()
+
+    kb.button(text="⬅️", callback_data=f"history_page:{page - 1}")
+    kb.button(text="➡️", callback_data=f"history_page:{page + 1}")
+    kb.button(text="🔝 В начало списка", callback_data="history_page:0")
+    kb.button(text="🏠 В главное меню", callback_data="menu")
+
+    kb.adjust(2, 1, 1)
+
+    return text, kb.as_markup()
+
+
+@dp.callback_query(F.data == "history")
+async def history(callback: CallbackQuery):
+    text, keyboard = build_history_text(callback.from_user.id, 0)
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=keyboard
+    )
+
     await callback.answer()
 
+
+@dp.callback_query(F.data.startswith("history_page:"))
+async def history_page(callback: CallbackQuery):
+    page = int(callback.data.split(":")[1])
+
+    text, keyboard = build_history_text(callback.from_user.id, page)
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=keyboard
+    )
+
+    await callback.answer()
 
 @dp.callback_query(F.data == "payment")
 async def payment(callback: CallbackQuery):
