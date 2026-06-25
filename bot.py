@@ -304,6 +304,9 @@ async def menu(callback: CallbackQuery):
 LESSONS_PER_PAGE = 4
 
 
+LESSONS_PER_PAGE = 4
+
+
 def build_history_text(user_id, page=0):
     student = find_student(user_id)
 
@@ -336,16 +339,10 @@ def build_history_text(user_id, page=0):
         })
 
     total_pages = max((len(prepared) - 1) // LESSONS_PER_PAGE + 1, 1)
-
-    if page < 0:
-        page = 0
-
-    if page >= total_pages:
-        page = total_pages - 1
+    page = max(0, min(page, total_pages - 1))
 
     start = page * LESSONS_PER_PAGE
     end = start + LESSONS_PER_PAGE
-
     page_items = prepared[start:end]
 
     text = "📚 История занятий\n\n"
@@ -353,16 +350,18 @@ def build_history_text(user_id, page=0):
     for item in page_items:
         text += (
             f"{item['payment_status']}\n\n"
-            f"📖 Предмет: Обществознание\n"
-            f"📌 Тип: {item['title']}\n"
             f"📅 Дата: {item['date']}\n"
+            f"📖 Предмет: Обществознание\n"
+            f"📝 Тип: {item['title']}\n"
             f"💰 Стоимость: {format_money(item['price'])}\n\n"
-            "──────────────\n\n"
+            "━━━━━━━━━━━━━━\n\n"
         )
 
-    text += f"💳 Ваш баланс: {format_money(balance)}\n"
-    text += f"❗ Общая задолженность: {format_money(debt)}\n\n"
-    text += f"Страница {page + 1} из {total_pages}"
+    text += (
+        f"💳 Баланс: {format_money(balance)}\n"
+        f"❗ К оплате: {format_money(debt)}\n\n"
+        f"Страница {page + 1} из {total_pages}"
+    )
 
     kb = InlineKeyboardBuilder()
 
