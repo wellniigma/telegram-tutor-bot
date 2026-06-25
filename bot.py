@@ -249,11 +249,10 @@ def archive_current_week():
 
 def admin_menu():
     kb = InlineKeyboardBuilder()
-
     kb.button(text="👥 Список должников", callback_data="admin_debts")
+    kb.button(text="📊 Статистика", callback_data="admin_stats")
     kb.button(text="📂 Перенести неделю в Архив", callback_data="archive_week")
     kb.button(text="🏠 В главное меню", callback_data="menu")
-
     kb.adjust(1)
     return kb.as_markup()
 
@@ -742,7 +741,50 @@ async def reject_payment(callback: CallbackQuery):
 
     await callback.answer()
 
+@dp.callback_query(F.data == "admin_stats")
+async def admin_stats(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
 
+    rows = attendance_sheet.get_all_records()
+
+    total_students = 0
+    total_lessons = 0
+    total_chargeable = 0
+    total_debt = 0
+
+    for student in rows:
+        student_id = student.get("ID ученика")
+
+        if not student_id:
+            continue
+
+        total_students += 1
+
+        lessons, chargeable_total = build_history(student)
+        balance = get_student_balance(student_id)
+        debt = max(chargeable_total - balance, 0)
+
+        total_lessons += len(lessons)
+        total_chargeable += chargeable_total
+        total_debt += debt
+
+    text = (
+        "📊 Статистика\n\n"
+        f"👥 Учеников: {total_students}\n"
+        f"📚 Занятий за текущую неделю: {total_lessons}\n"
+        f"💰 Начислено: {format_money(total_chargeable)}\n"
+        f"❗ Общий долг: {format_money(total_debt)}"
+    )
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=admin_menu()
+    )
+
+    await callback.answer()
+    
 async def main():
     await dp.start_polling(bot)
 
