@@ -16,6 +16,8 @@ logging.basicConfig(level=logging.INFO)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
+ADMIN_ID = 810699186
+PAYMENT_URL = "https://example.com"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -345,14 +347,52 @@ async def payment(callback: CallbackQuery):
     await callback.answer()
 
 
+waiting_for_amount = set()
+
+
 @dp.callback_query(F.data == "pay_custom")
 async def pay_custom(callback: CallbackQuery):
+    waiting_for_amount.add(callback.from_user.id)
+
     await callback.message.edit_text(
-        "Введите сумму, на которую хотите пополнить баланс.\n\n"
-        "Пока ввод суммы подключим следующим шагом.",
+        "Введите сумму, на которую хотите пополнить баланс.",
         reply_markup=back_menu(),
     )
+
     await callback.answer()
+
+
+@dp.message()
+async def handle_custom_amount(message: Message):
+    if message.from_user.id not in waiting_for_amount:
+        return
+
+    text = message.text.strip().replace(" ", "").replace(",", ".")
+
+    if not text.isdigit():
+        await message.answer(
+            "Пожалуйста, введите сумму числом. Например: 2400",
+            reply_markup=back_menu(),
+        )
+        return
+
+    amount = int(text)
+
+    waiting_for_amount.remove(message.from_user.id)
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="💳 Оплатить", url=PAYMENT_URL)
+    kb.button(text="✅ Я оплатил(а)", callback_data=f"paid_request:{amount}")
+    kb.button(text="🏠 В главное меню", callback_data="menu")
+    kb.adjust(1)
+
+    await message.answer(
+        "Спасибо, что остаётесь со мной 💗\n\n"
+        "Оплата доступна по кнопке ниже ⬇️\n\n"
+        f"Сумма: {format_money(amount)}\n\n"
+        "После оплаты нажмите кнопку «Я оплатил(а)».",
+        reply_markup=kb.as_markup(),
+    )
 
 
 @dp.callback_query(F.data.startswith("pay_debt:"))
@@ -360,15 +400,133 @@ async def pay_debt(callback: CallbackQuery):
     amount = callback.data.split(":")[1]
 
     kb = InlineKeyboardBuilder()
-    kb.button(text="💳 Оплатить", url="https://example.com")
+    kb.button(text="💳 Оплатить", url=PAYMENT_URL)
+    kb.button(text="✅ Я оплатил(а)", callback_data=f"paid_request:{amount}")
     kb.button(text="🏠 В главное меню", callback_data="menu")
     kb.adjust(1)
 
     await callback.message.edit_text(
         "Спасибо, что остаётесь со мной 💗\n\n"
         "Оплата доступна по кнопке ниже ⬇️\n\n"
-        f"Сумма: {format_money(amount)}",
+        f"Сумма: {format_money(amount)}\n\n"
+        "После оплаты нажмите кнопку «Я оплатил(а)».",
         reply_markup=kb.as_markup(),
+    )
+
+    await callback.answer()
+
+@dp.callback_query(F.data.startswith("paid_request:"))
+async def paid_request(callback: CallbackQuery):
+    amount = int(callback.data.split(":")[1])
+    student = find_student(callback.from_user.id)
+
+    if not student:
+        await callback.answer("Ученик не найден.", show_alert=True)
+        return
+
+    student_name = student.get("Имя ученика", "Без имени")
+
+    admin_kb = InlineKeyboardBuilder()
+    admin_kb.button(
+        text="✅ Подтвердить",
+        callback_data=f"approve_payment:{callback.from_user.id}:{amount}",
+    )
+    admin_kb.button(
+        text="❌ Отклонить",
+        callback_data=f"reject_payment:{callback.from_user.id}:{amount}",
+    )
+    admin_kb.adjust(1)
+
+    await bot.send_message(
+        ADMIN_ID,
+        "💰 Новая заявка на подтверждение оплаты\n\n"
+        f"Ученик: {student_name}\n"
+        f"ID: {callback.from_user.id}\n"
+        f"Сумма: {format_money(amount)}",
+        reply_markup=admin_kb.as_markup(),
+    )
+
+    await callback.message.edit_text(
+        "Спасибо! 💗\n\n"
+        "Платёж отправлен преподавателю на проверку.",
+        reply_markup=back_menu(),
+    )
+
+    await callback.answer()
+
+def update_student_balance(telegram_id, amount):
+    rows = balances_sheet.get_all_records()
+
+    for index, row in enumerate(rows, start=2):
+        if str(row.get("ID ученика", "")).strip() == str(telegram_id):
+            current_balance = row.get("Баланс", 0)
+
+            if current_balance in ("", None):
+                current_balance = 0
+
+            new_balance = float(current_balance) + float(amount)
+            balances_sheet.update_cell(index, 3, new_balance)
+            return new_balance
+
+    student = find_student(telegram_id)
+    student_name = student.get("Имя ученика", "") if student else ""
+
+    balances_sheet.append_row(
+        [telegram_id, student_name, float(amount)],
+        value_input_option="USER_ENTERED",
+    )
+
+    return float(amount)
+
+
+@dp.callback_query(F.data.startswith("approve_payment:"))
+async def approve_payment(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
+
+    _, student_id, amount = callback.data.split(":")
+    student_id = int(student_id)
+    amount = int(amount)
+
+    new_balance = update_student_balance(student_id, amount)
+
+    await bot.send_message(
+        student_id,
+        "Оплата прошла успешно! ✅",
+        reply_markup=back_menu(),
+    )
+
+    await callback.message.edit_text(
+        "✅ Оплата подтверждена\n\n"
+        f"ID ученика: {student_id}\n"
+        f"Сумма: {format_money(amount)}\n"
+        f"Новый баланс: {format_money(new_balance)}"
+    )
+
+    await callback.answer()
+
+@dp.callback_query(F.data.startswith("reject_payment:"))
+async def reject_payment(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
+
+    _, student_id, amount = callback.data.split(":")
+    student_id = int(student_id)
+    amount = int(amount)
+
+    await bot.send_message(
+        student_id,
+        "Платёж пока не подтверждён.\n\n"
+        "Если произошла ошибка, свяжитесь с преподавателем.",
+        reply_markup=back_menu(),
+    )
+
+    await callback.message.edit_text(
+        "❌ Оплата отклонена\n\n"
+        f"ID ученика: {student_id}\n"
+        f"Сумма: {format_money(amount)}"
     )
 
     await callback.answer()
