@@ -794,207 +794,32 @@ async def admin_students(callback: CallbackQuery):
 
     rows = attendance_sheet.get_all_records()
 
-    kb = InlineKeyboardBuilder()
+    text = "👥 Все ученики\n\n"
 
     for student in rows:
         student_id = student.get("ID ученика")
         name = student.get("Имя ученика", "Без имени")
+        group = student.get("Группа", "")
+        duration = student.get("Длительность", "")
 
         if not student_id:
             continue
 
-        kb.button(
-            text=f"👤 {name}",
-            callback_data=f"student_card:{student_id}"
+        lessons, chargeable_total = build_history(student)
+        balance = get_student_balance(student_id)
+        debt = max(chargeable_total - balance, 0)
+
+        text += (
+            f"👤 {name}\n"
+            f"ID: {student_id}\n"
+            f"Группа: {group}\n"
+            f"Длительность: {duration}\n"
+            f"Баланс: {format_money(balance)}\n"
+            f"Долг: {format_money(debt)}\n\n"
         )
-
-    kb.button(text="🏠 В админку", callback_data="admin_back")
-    kb.adjust(1)
-
-    await callback.message.edit_text(
-        "👥 Выберите ученика:",
-        reply_markup=kb.as_markup()
-    )
-
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("student_card:"))
-async def student_card(callback: CallbackQuery):
-    if callback.from_user.id != ADMIN_ID:
-        await callback.answer("Недоступно.", show_alert=True)
-        return
-
-    student_id = callback.data.split(":")[1]
-    student = find_student(student_id)
-
-    if not student:
-        await callback.message.edit_text(
-            "Ученик не найден.",
-            reply_markup=admin_menu()
-        )
-        await callback.answer()
-        return
-
-    name = student.get("Имя ученика", "Без имени")
-    group = student.get("Группа", "")
-    duration = student.get("Длительность", "")
-
-    lessons, chargeable_total = build_history(student)
-    balance = get_student_balance(student_id)
-    debt = max(chargeable_total - balance, 0)
-
-    paid_lessons = 0
-    unpaid_lessons = 0
-
-    remaining_balance = balance
-
-    for lesson in lessons:
-        if not lesson["need_pay"]:
-            continue
-
-        if remaining_balance >= lesson["price"]:
-            paid_lessons += 1
-            remaining_balance -= lesson["price"]
-        else:
-            unpaid_lessons += 1
-
-    text = (
-        f"👤 Карточка ученика\n\n"
-        f"Имя: {name}\n"
-        f"ID: {student_id}\n"
-        f"Группа: {group}\n"
-        f"Длительность: {duration} мин.\n\n"
-        f"📚 Занятий на этой неделе: {len(lessons)}\n"
-        f"✅ Оплачено занятий: {paid_lessons}\n"
-        f"🟡 Ожидают оплаты: {unpaid_lessons}\n\n"
-        f"💳 Баланс: {format_money(balance)}\n"
-        f"❗ Долг: {format_money(debt)}"
-    )
-
- kb = InlineKeyboardBuilder()
-kb.button(text="📅 Отметить посещение", callback_data=f"mark_attendance:{student_id}")
-kb.button(text="⬅️ К списку учеников", callback_data="admin_students")
-kb.button(text="🏠 В админку", callback_data="admin_back")
-kb.adjust(1)
 
     await callback.message.edit_text(
         text,
-        reply_markup=kb.as_markup()
-    )
-
-    await callback.answer()
-
-
-@dp.callback_query(F.data == "admin_back")
-async def admin_back(callback: CallbackQuery):
-    if callback.from_user.id != ADMIN_ID:
-        await callback.answer("Недоступно.", show_alert=True)
-        return
-
-    await callback.message.edit_text(
-        "⚙️ Панель преподавателя\n\n"
-        "Здесь можно управлять ботом.",
-        reply_markup=admin_menu()
-    )
-
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("mark_attendance:"))
-async def mark_attendance(callback: CallbackQuery):
-    if callback.from_user.id != ADMIN_ID:
-        await callback.answer("Недоступно.", show_alert=True)
-        return
-
-    student_id = callback.data.split(":")[1]
-
-    kb = InlineKeyboardBuilder()
-
-    for day in WEEKDAYS.keys():
-        kb.button(
-            text=day.capitalize(),
-            callback_data=f"mark_day:{student_id}:{day}"
-        )
-
-    kb.button(text="⬅️ Назад к ученику", callback_data=f"student_card:{student_id}")
-    kb.adjust(2, 2, 2, 1, 1)
-
-    await callback.message.edit_text(
-        "Выберите день недели:",
-        reply_markup=kb.as_markup()
-    )
-
-    await callback.answer()
-
-
-@dp.callback_query(F.data.startswith("mark_day:"))
-async def mark_day(callback: CallbackQuery):
-    if callback.from_user.id != ADMIN_ID:
-        await callback.answer("Недоступно.", show_alert=True)
-        return
-
-    _, student_id, day = callback.data.split(":")
-
-    kb = InlineKeyboardBuilder()
-    kb.button(text="✅ Проведено", callback_data=f"set_mark:{student_id}:{day}:1")
-    kb.button(text="❌ Отмена заранее", callback_data=f"set_mark:{student_id}:{day}:0")
-    kb.button(text="⏰ Поздняя отмена", callback_data=f"set_mark:{student_id}:{day}:-")
-    kb.button(text="➕ Доп. занятие / перенос", callback_data=f"set_mark:{student_id}:{day}:$")
-    kb.button(text="⬅️ Назад", callback_data=f"mark_attendance:{student_id}")
-    kb.adjust(1)
-
-    await callback.message.edit_text(
-        f"Выберите отметку для дня: {day}",
-        reply_markup=kb.as_markup()
-    )
-
-    await callback.answer()
-
-
-@dp.callback_query(F.data.startswith("set_mark:"))
-async def set_mark(callback: CallbackQuery):
-    if callback.from_user.id != ADMIN_ID:
-        await callback.answer("Недоступно.", show_alert=True)
-        return
-
-    _, student_id, day, mark = callback.data.split(":")
-
-    rows = attendance_sheet.get_all_records()
-    headers = attendance_sheet.row_values(1)
-
-    row_number = None
-    col_number = None
-
-    for index, row in enumerate(rows, start=2):
-        if str(row.get("ID ученика", "")).strip() == str(student_id):
-            row_number = index
-            break
-
-    for index, header in enumerate(headers, start=1):
-        if str(header).strip().lower() == day:
-            col_number = index
-            break
-
-    if row_number is None or col_number is None:
-        await callback.message.edit_text(
-            "Не удалось найти ученика или день недели в таблице.",
-            reply_markup=admin_menu()
-        )
-        await callback.answer()
-        return
-
-    attendance_sheet.update_cell(row_number, col_number, mark)
-
-    mark_names = {
-        "1": "Проведено",
-        "0": "Отмена заранее",
-        "-": "Поздняя отмена",
-        "$": "Доп. занятие / перенос",
-    }
-
-    await callback.message.edit_text(
-        f"Готово ✅\n\n"
-        f"Ученику ID {student_id} поставлена отметка:\n"
-        f"{day} — {mark_names.get(mark, mark)}",
         reply_markup=admin_menu()
     )
 
