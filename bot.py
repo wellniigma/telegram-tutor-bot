@@ -180,6 +180,83 @@ def build_history(student):
 
     return lessons, chargeable_total
 
+def archive_current_week():
+    rows = attendance_sheet.get_all_records()
+    headers = attendance_sheet.row_values(1)
+
+    archive_rows = []
+    cells_to_clear = []
+
+    created_at = datetime.now().strftime("%d.%m.%Y %H:%M")
+
+    for row_number, row in enumerate(rows, start=2):
+        student_id = row.get("ID ученика", "")
+        name = row.get("Имя ученика", "")
+        group = row.get("Группа", "")
+        duration = row.get("Длительность", "")
+
+        lesson_price = get_lesson_price(group, duration)
+
+        for col_number, header in enumerate(headers, start=1):
+            day_name = str(header).strip().lower()
+
+            if day_name not in WEEKDAYS:
+                continue
+
+            mark = str(row.get(header, "")).strip()
+
+            if mark == "":
+                continue
+
+            if mark == "1":
+                lesson_type = "Проведено"
+                price = lesson_price
+            elif mark == "$":
+                lesson_type = "Дополнительное занятие / перенос"
+                price = lesson_price
+            elif mark == "-":
+                lesson_type = "Поздняя отмена"
+                price = lesson_price
+            elif mark == "0":
+                lesson_type = "Отмена заранее"
+                price = 0
+            else:
+                continue
+
+            archive_rows.append([
+                student_id,
+                name,
+                group,
+                duration,
+                get_lesson_date(day_name),
+                day_name,
+                mark,
+                price,
+                lesson_type,
+                created_at
+            ])
+
+            cells_to_clear.append((row_number, col_number))
+
+    if archive_rows:
+        archive_sheet.append_rows(
+            archive_rows,
+            value_input_option="USER_ENTERED"
+        )
+
+    for row_number, col_number in cells_to_clear:
+        attendance_sheet.update_cell(row_number, col_number, "")
+
+    return len(archive_rows)
+
+
+def admin_menu():
+    kb = InlineKeyboardBuilder()
+    kb.button(text="📂 Перенести неделю в Архив", callback_data="archive_week")
+    kb.button(text="🏠 В главное меню", callback_data="menu")
+    kb.adjust(1)
+    return kb.as_markup()
+
 
 def main_menu():
     kb = InlineKeyboardBuilder()
@@ -361,6 +438,35 @@ async def pay_custom(callback: CallbackQuery):
 
     await callback.answer()
 
+@dp.message(Command("admin"))
+async def admin_panel(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        await message.answer("Эта команда доступна только преподавателю.")
+        return
+
+    await message.answer(
+        "⚙️ Панель преподавателя\n\n"
+        "Здесь можно управлять ботом.",
+        reply_markup=admin_menu()
+    )
+
+
+@dp.callback_query(F.data == "archive_week")
+async def archive_week(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
+
+    count = archive_current_week()
+
+    await callback.message.edit_text(
+        "📂 Неделя перенесена в Архив.\n\n"
+        f"Записей добавлено: {count}\n\n"
+        "Лист «Посещаемость» очищен для новой недели.",
+        reply_markup=admin_menu()
+    )
+
+    await callback.answer()
 
 @dp.message()
 async def handle_custom_amount(message: Message):
