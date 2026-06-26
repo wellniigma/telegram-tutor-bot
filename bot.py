@@ -471,7 +471,7 @@ async def payment(callback: CallbackQuery):
 
 
 waiting_for_amount = set()
-
+waiting_for_balance = {}
 
 @dp.callback_query(F.data == "pay_custom")
 async def pay_custom(callback: CallbackQuery):
@@ -573,12 +573,94 @@ async def archive_week_confirm(callback: CallbackQuery):
 
     await callback.answer()
 
-@dp.message()
-async def handle_custom_amount(message: Message):
-    if message.from_user.id not in waiting_for_amount:
+@dp.callback_query(F.data.startswith("balance_menu:"))
+async def balance_menu(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
         return
 
+    student_id = callback.data.split(":")[1]
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="➕ Пополнить баланс", callback_data=f"balance_action:{student_id}:plus")
+    kb.button(text="➖ Списать с баланса", callback_data=f"balance_action:{student_id}:minus")
+    kb.button(text="⬅️ Назад к ученику", callback_data=f"student:{student_id}")
+    kb.adjust(1)
+
+    await callback.message.edit_text(
+        "Выберите действие с балансом:",
+        reply_markup=kb.as_markup()
+    )
+
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("balance_action:"))
+async def balance_action(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
+
+    _, student_id, action = callback.data.split(":")
+
+    waiting_for_balance[callback.from_user.id] = {
+        "student_id": student_id,
+        "action": action
+    }
+
+    if action == "plus":
+        text = "Введите сумму, на которую нужно пополнить баланс."
+    else:
+        text = "Введите сумму, которую нужно списать с баланса."
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="⬅️ Назад к ученику", callback_data=f"student:{student_id}")
+    kb.adjust(1)
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=kb.as_markup()
+    )
+
+    await callback.answer()
+
+@@dp.message()
+async def handle_custom_amount(message: Message):
     text = message.text.strip().replace(" ", "").replace(",", ".")
+
+    if message.from_user.id in waiting_for_balance:
+        data = waiting_for_balance[message.from_user.id]
+
+        if not text.isdigit():
+            await message.answer(
+                "Пожалуйста, введите сумму числом. Например: 2400",
+                reply_markup=back_menu(),
+            )
+            return
+
+        amount = int(text)
+
+        if data["action"] == "minus":
+            amount = -amount
+
+        new_balance = update_student_balance(data["student_id"], amount)
+
+        waiting_for_balance.pop(message.from_user.id, None)
+
+        kb = InlineKeyboardBuilder()
+        kb.button(text="⬅️ Вернуться к ученику", callback_data=f"student:{data['student_id']}")
+        kb.button(text="🏠 В админку", callback_data="admin_back")
+        kb.adjust(1)
+
+        await message.answer(
+            "Баланс изменён ✅\n\n"
+            f"Новый баланс: {format_money(new_balance)}",
+            reply_markup=kb.as_markup()
+        )
+        return
+
+    if message.from_user.id not in waiting_for_amount:
+        return
 
     if not text.isdigit():
         await message.answer(
@@ -855,10 +937,8 @@ async def student_card(callback: CallbackQuery):
     )
 
     kb = InlineKeyboardBuilder()
-    kb.button(
-        text="📅 Отметить посещение",
-        callback_data=f"mark_attendance:{student_id}"
-    )
+    kb.button(text="📅 Отметить посещение", callback_data=f"mark_attendance:{student_id}")
+    kb.button(text="💰 Изменить баланс", callback_data=f"balance_menu:{student_id}")
     kb.button(text="⬅️ К списку учеников", callback_data="admin_students")
     kb.button(text="🏠 В админку", callback_data="admin_back")
     kb.adjust(1)
