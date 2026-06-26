@@ -941,7 +941,7 @@ async def mark_day(callback: CallbackQuery):
 
     await callback.answer()
 
-@@dp.callback_query(F.data.startswith("set_mark:"))
+@dp.callback_query(F.data.startswith("set_mark:"))
 async def set_mark(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("Недоступно.", show_alert=True)
@@ -978,27 +978,10 @@ async def set_mark(callback: CallbackQuery):
 
     attendance_sheet.update_cell(row_number, col_number, mark)
 
-    mark_names = {
-        "1": "✅ Проведено",
-        "0": "❌ Отмена заранее",
-        "-": "⏰ Поздняя отмена",
-        "$": "➕ Дополнительное занятие",
-        "": "🧹 Отметка очищена"
-    }
+    await callback.answer("Отметка сохранена ✅", show_alert=False)
 
-    kb = InlineKeyboardBuilder()
-    kb.button(text="⬅️ Вернуться к ученику", callback_data=f"student:{student_id}")
-    kb.button(text="🏠 В админку", callback_data="admin_back")
-    kb.adjust(1)
-
-    await callback.message.edit_text(
-        f"Готово!\n\n"
-        f"{day.capitalize()}\n"
-        f"{mark_names[mark]}",
-        reply_markup=kb.as_markup()
-    )
-
-    await callback.answer()
+    callback.data = f"student:{student_id}"
+    await student_card(callback)
 
 
 async def main():
