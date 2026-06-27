@@ -1226,6 +1226,41 @@ async def delete_student_confirm(callback: CallbackQuery):
     )
 
     await callback.answer()
+
+@dp.callback_query(F.data.startswith("delete_student_yes:"))
+async def delete_student_yes(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
+
+    student_id = callback.data.split(":")[1]
+
+    attendance_rows = attendance_sheet.get_all_records()
+    balance_rows = balances_sheet.get_all_records()
+
+    deleted_attendance = False
+    deleted_balance = False
+
+    for index, row in enumerate(attendance_rows, start=2):
+        if str(row.get("ID ученика", "")).strip() == str(student_id):
+            attendance_sheet.delete_rows(index)
+            deleted_attendance = True
+            break
+
+    for index, row in enumerate(balance_rows, start=2):
+        if str(row.get("ID ученика", "")).strip() == str(student_id):
+            balances_sheet.delete_rows(index)
+            deleted_balance = True
+            break
+
+    await callback.message.edit_text(
+        "Ученик удалён ✅\n\n"
+        f"Из посещаемости: {'да' if deleted_attendance else 'не найден'}\n"
+        f"Из балансов: {'да' if deleted_balance else 'не найден'}",
+        reply_markup=admin_menu()
+    )
+
+    await callback.answer()
     
 async def main():
     await dp.start_polling(bot)
