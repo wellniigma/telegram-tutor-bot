@@ -710,6 +710,33 @@ async def add_student_start(callback: CallbackQuery):
 
     await callback.answer("Начинаем добавление ученика")
 
+def update_student_data(student_id, field, new_value):
+    attendance_rows = attendance_sheet.get_all_records()
+    balance_rows = balances_sheet.get_all_records()
+
+    attendance_columns = {
+        "telegram_id": 1,
+        "name": 2,
+        "group": 3,
+        "duration": 4,
+    }
+
+    balance_columns = {
+        "telegram_id": 1,
+        "name": 2,
+    }
+
+    for index, row in enumerate(attendance_rows, start=2):
+        if str(row.get("ID ученика", "")).strip() == str(student_id):
+            attendance_sheet.update_cell(index, attendance_columns[field], new_value)
+            break
+
+    if field in balance_columns:
+        for index, row in enumerate(balance_rows, start=2):
+            if str(row.get("ID ученика", "")).strip() == str(student_id):
+                balances_sheet.update_cell(index, balance_columns[field], new_value)
+                break
+
 @dp.callback_query(F.data.startswith("edit_name:"))
 async def edit_name(callback: CallbackQuery):
     student_id = callback.data.split(":")[1]
@@ -752,10 +779,33 @@ async def edit_id(callback: CallbackQuery):
     }
     await callback.message.edit_text("Введите новый Telegram ID ученика:")
     await callback.answer()
-    
+
 @dp.message()
 async def handle_custom_amount(message: Message):
     text = message.text.strip()
+    
+    if message.from_user.id in waiting_for_edit_student:
+        data = waiting_for_edit_student[message.from_user.id]
+        student_id = data["student_id"]
+        field = data["field"]
+
+        if field in ("telegram_id", "duration") and not text.isdigit():
+            await message.answer("Введите число.")
+            return
+
+        if field == "duration" and text not in ("60", "90"):
+            await message.answer("Длительность должна быть 60 или 90.")
+            return
+
+        update_student_data(student_id, field, text)
+
+        waiting_for_edit_student.pop(message.from_user.id, None)
+
+        await message.answer(
+            "Данные ученика обновлены ✅",
+            reply_markup=admin_menu()
+        )
+        return
 
     if message.from_user.id in waiting_for_new_student:
         data = waiting_for_new_student[message.from_user.id]
