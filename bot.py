@@ -1072,6 +1072,7 @@ async def student_card(callback: CallbackQuery):
     kb = InlineKeyboardBuilder()
     kb.button(text="📅 Отметить посещение", callback_data=f"mark_attendance:{student_id}")
     kb.button(text="💰 Изменить баланс", callback_data=f"balance_menu:{student_id}")
+    kb.button(text="✏️ Редактировать", callback_data=f"edit_student:{student_id}")
     kb.button(text="🗑 Удалить ученика", callback_data=f"delete_student:{student_id}")
     kb.button(text="⬅️ К списку учеников", callback_data="admin_students")
     kb.button(text="🏠 В админку", callback_data="admin_back")
