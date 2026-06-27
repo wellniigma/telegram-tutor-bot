@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import json
+import random
 from datetime import datetime, timedelta
 
 import gspread
@@ -18,6 +19,13 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 ADMIN_ID = 810699186
 PAYMENT_URL = "https://example.com"
+DAY_QUOTES = [
+    "ЕГЭ не волк, в лес не убежит. А вот баллы — могут.",
+    "Сегодня ты учишь обществознание, завтра обществознание работает на тебя.",
+    "Маленький шаг по кодификатору — большой шаг к сотке.",
+    "Не обязательно быть гением. Достаточно открыть конспект.",
+    "Сначала кажется сложно, потом — база.",
+]
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -270,6 +278,7 @@ def main_menu():
     kb = InlineKeyboardBuilder()
     kb.button(text="📝 Прошедшие занятия", callback_data="history")
     kb.button(text="💳 Оплатить занятия", callback_data="payment")
+    kb.button(text="💌 Цитата дня", callback_data="quote_day")
     kb.adjust(1)
     return kb.as_markup()
 
@@ -399,7 +408,18 @@ def build_history_text(user_id, page=0):
 
     return text, kb.as_markup()
 
+@dp.callback_query(F.data == "quote_day")
+async def quote_day(callback: CallbackQuery):
+    quote = random.choice(DAY_QUOTES)
 
+    await callback.message.edit_text(
+        f"💌 Цитата дня\n\n"
+        f"{quote}",
+        reply_markup=main_menu()
+    )
+
+    await callback.answer()
+    
 @dp.callback_query(F.data == "history")
 async def history(callback: CallbackQuery):
     text, keyboard = build_history_text(callback.from_user.id, 0)
