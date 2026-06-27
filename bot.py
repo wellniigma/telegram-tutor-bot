@@ -1291,6 +1291,34 @@ async def delete_student_yes(callback: CallbackQuery):
 
     await callback.answer()
     
+@dp.callback_query(F.data.startswith("edit_student:"))
+async def edit_student(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
+
+    student_id = callback.data.split(":")[1]
+    student = find_student(student_id)
+
+    if not student:
+        await callback.answer("Ученик не найден.", show_alert=True)
+        return
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="👤 Изменить имя", callback_data=f"edit_name:{student_id}")
+    kb.button(text="👥 Изменить группу", callback_data=f"edit_group:{student_id}")
+    kb.button(text="⏱ Изменить длительность", callback_data=f"edit_duration:{student_id}")
+    kb.button(text="🆔 Изменить Telegram ID", callback_data=f"edit_id:{student_id}")
+    kb.button(text="⬅️ Назад", callback_data=f"student:{student_id}")
+    kb.adjust(1)
+
+    await callback.message.edit_text(
+        "Что хотите изменить?",
+        reply_markup=kb.as_markup()
+    )
+
+    await callback.answer()
+
 async def main():
     await dp.start_polling(bot)
 
