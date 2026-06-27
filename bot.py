@@ -8,7 +8,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -290,7 +290,7 @@ def get_main_text():
     )
 
 
-@dp.message(Command("start"))
+@@dp.message(Command("start"))
 async def start(message: Message):
     student = find_student(message.from_user.id)
 
@@ -298,11 +298,15 @@ async def start(message: Message):
         await message.answer(
             "Ваш Telegram ID не найден в таблице.\n\n"
             f"Ваш ID: {message.from_user.id}\n\n"
-            "Свяжитесь с преподавателем."
+            "Свяжитесь с преподавателем.",
+            reply_markup=ReplyKeyboardRemove()
         )
         return
 
-    await message.answer(get_main_text(), reply_markup=main_menu())
+    await message.answer(
+        get_main_text(),
+        reply_markup=main_menu()
+    )
 
 
 @dp.callback_query(F.data == "menu")
