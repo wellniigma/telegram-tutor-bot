@@ -1071,7 +1071,8 @@ async def approve_payment(callback: CallbackQuery):
 
     await bot.send_message(
         student_id,
-        "Оплата прошла успешно! ✅",
+        "Оплата подтверждена ✅\n\n",
+        "Ты вообще молодец",
         reply_markup=back_menu(),
     )
 
