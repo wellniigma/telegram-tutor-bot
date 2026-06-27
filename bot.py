@@ -431,7 +431,9 @@ async def payment(callback: CallbackQuery):
 
     if not student:
         await callback.message.edit_text(
-            "Ваш Telegram ID не найден в таблице.",
+            "Босс пока не познакомил меня с вами 🥺\n\n"
+            f"Ваш ID: {callback.from_user.id}\n\n"
+            "Свяжитесь с Алиюшкой",
             reply_markup=back_menu(),
         )
         await callback.answer()
@@ -445,7 +447,7 @@ async def payment(callback: CallbackQuery):
 
     if debt <= 0:
         text += (
-            "Сейчас задолженности нет.\n\n"
+            "Все четко, долгов нет\n\n"
             f"Ваш баланс: {format_money(balance)}"
         )
     else:
@@ -463,8 +465,8 @@ async def payment(callback: CallbackQuery):
                 continue
 
             text += (
-                f"{number}. {item['date']} | "
-                f"{item['title']} | "
+                f"{number}. {item['date']} · "
+                f"{item['title']} · "
                 f"{format_money(item['price'])}\n"
             )
             number += 1
@@ -490,7 +492,6 @@ async def payment(callback: CallbackQuery):
 
     await callback.message.edit_text(text, reply_markup=kb.as_markup())
     await callback.answer()
-
 
 waiting_for_amount = set()
 waiting_for_balance = {}
