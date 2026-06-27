@@ -961,15 +961,15 @@ async def handle_custom_amount(message: Message):
 
     kb = InlineKeyboardBuilder()
     kb.button(text="💳 Оплатить", url=PAYMENT_URL)
-    kb.button(text="✅ Я оплатил(а)", callback_data=f"paid_request:{amount}")
+    kb.button(text="✅ Миссия выполнена", callback_data=f"paid_request:{amount}")
     kb.button(text="🏠 В главное меню", callback_data="menu")
     kb.adjust(1)
 
     await message.answer(
-        "Спасибо, что остаётесь со мной 💗\n\n"
+        "Спасибо за доверие 💗\n\n"
         "Оплата доступна по кнопке ниже ⬇️\n\n"
         f"Сумма: {format_money(amount)}\n\n"
-        "После оплаты нажмите кнопку «Я оплатил(а)».",
+        "После оплаты нажмите кнопку «Миссия выполнена».",
         reply_markup=kb.as_markup(),
     )
 
@@ -979,15 +979,15 @@ async def pay_debt(callback: CallbackQuery):
 
     kb = InlineKeyboardBuilder()
     kb.button(text="💳 Оплатить", url=PAYMENT_URL)
-    kb.button(text="✅ Я оплатил(а)", callback_data=f"paid_request:{amount}")
+    kb.button(text="✅ Миссия выполнена", callback_data=f"paid_request:{amount}")
     kb.button(text="🏠 В главное меню", callback_data="menu")
     kb.adjust(1)
 
     await callback.message.edit_text(
-        "Спасибо, что остаётесь со мной 💗\n\n"
+        "Спасибо за доверие 💗\n\n"
         "Оплата доступна по кнопке ниже ⬇️\n\n"
         f"Сумма: {format_money(amount)}\n\n"
-        "После оплаты нажмите кнопку «Я оплатил(а)».",
+         "После оплаты нажми кнопку «Миссия выполнена».",
         reply_markup=kb.as_markup(),
     )
 
