@@ -632,37 +632,121 @@ async def balance_action(callback: CallbackQuery):
 
     await callback.answer()
 
+def add_student_to_sheets(data):
+    headers = attendance_sheet.row_values(1)
+
+    new_attendance_row = []
+
+    for header in headers:
+        header = str(header).strip()
+
+        if header == "ID ученика":
+            new_attendance_row.append(data["telegram_id"])
+        elif header == "Имя ученика":
+            new_attendance_row.append(data["name"])
+        elif header == "Группа":
+            new_attendance_row.append(data["group"])
+        elif header == "Длительность":
+            new_attendance_row.append(data["duration"])
+        elif header == "Макс. кол-во занятий":
+            new_attendance_row.append("")
+        else:
+            new_attendance_row.append("")
+
+    attendance_sheet.append_row(
+        new_attendance_row,
+        value_input_option="USER_ENTERED"
+    )
+
+    balances_sheet.append_row(
+        [
+            data["telegram_id"],
+            data["name"],
+            0
+        ],
+        value_input_option="USER_ENTERED"
+    )
+    
 @dp.callback_query(F.data == "add_student")
 async def add_student_start(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("Недоступно.", show_alert=True)
         return
 
-    waiting_for_new_student[callback.from_user.id] = {
-        "step": "name"
-    }
+    waiting_for_new_student[callback.from_user.id] = {"step": "name"}
 
     await callback.message.edit_text(
+        "➕ Добавление ученика\n\n"
+        "Шаг 1 из 4.\n"
         "Введите имя ученика:"
     )
 
-    await callback.answer()
-    
+    await callback.answer("Начинаем добавление ученика")
+
 @dp.message()
 async def handle_custom_amount(message: Message):
-    text = message.text.strip().replace(" ", "").replace(",", ".")
+    text = message.text.strip()
+
+    if message.from_user.id in waiting_for_new_student:
+        data = waiting_for_new_student[message.from_user.id]
+        step = data.get("step")
+
+        if step == "name":
+            data["name"] = text
+            data["step"] = "telegram_id"
+            await message.answer("Введите Telegram ID ученика:")
+            return
+
+        if step == "telegram_id":
+            if not text.isdigit():
+                await message.answer("ID должен быть числом. Введите Telegram ID ученика:")
+                return
+
+            data["telegram_id"] = text
+            data["step"] = "group"
+            await message.answer("Введите группу ученика: Перс / Пара / A / B / C / D / E / F / G")
+            return
+
+        if step == "group":
+            data["group"] = text
+            data["step"] = "duration"
+            await message.answer("Введите длительность занятия: 60 или 90")
+            return
+
+        if step == "duration":
+            if text not in ("60", "90"):
+                await message.answer("Длительность должна быть 60 или 90. Введите ещё раз:")
+                return
+
+            data["duration"] = text
+
+            add_student_to_sheets(data)
+
+            waiting_for_new_student.pop(message.from_user.id, None)
+
+            await message.answer(
+                "Ученик успешно добавлен ✅\n\n"
+                f"Имя: {data['name']}\n"
+                f"ID: {data['telegram_id']}\n"
+                f"Группа: {data['group']}\n"
+                f"Длительность: {data['duration']}",
+                reply_markup=admin_menu()
+            )
+            return
+
+    text_for_amount = text.replace(" ", "").replace(",", ".")
 
     if message.from_user.id in waiting_for_balance:
         data = waiting_for_balance[message.from_user.id]
 
-        if not text.isdigit():
+        if not text_for_amount.isdigit():
             await message.answer(
                 "Пожалуйста, введите сумму числом. Например: 2400",
                 reply_markup=back_menu(),
             )
             return
 
-        amount = int(text)
+        amount = int(text_for_amount)
 
         if data["action"] == "minus":
             amount = -amount
@@ -686,14 +770,14 @@ async def handle_custom_amount(message: Message):
     if message.from_user.id not in waiting_for_amount:
         return
 
-    if not text.isdigit():
+    if not text_for_amount.isdigit():
         await message.answer(
             "Пожалуйста, введите сумму числом. Например: 2400",
             reply_markup=back_menu(),
         )
         return
 
-    amount = int(text)
+    amount = int(text_for_amount)
 
     waiting_for_amount.remove(message.from_user.id)
 
@@ -710,7 +794,6 @@ async def handle_custom_amount(message: Message):
         "После оплаты нажмите кнопку «Я оплатил(а)».",
         reply_markup=kb.as_markup(),
     )
-
 
 @dp.callback_query(F.data.startswith("pay_debt:"))
 async def pay_debt(callback: CallbackQuery):
