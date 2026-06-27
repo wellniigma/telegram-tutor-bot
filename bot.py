@@ -801,7 +801,7 @@ async def broadcast_start(callback: CallbackQuery):
 async def handle_custom_amount(message: Message):
     text = message.text.strip()
 
-        if message.from_user.id in waiting_for_broadcast:
+    if message.from_user.id in waiting_for_broadcast:
         rows = attendance_sheet.get_all_records()
 
         sent = 0
