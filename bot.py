@@ -1363,7 +1363,7 @@ async def set_mark(callback: CallbackQuery):
         try:
             await bot.send_message(
                 int(student_id),
-                f"📌 Обновление по занятию\n\n"
+                f"📌 Апдейт по занятию\n\n"
                 f"{day.capitalize()}: {mark_names[mark]}.\n\n"
                 f"Текущая задолженность: {format_money(debt)}"
             )
