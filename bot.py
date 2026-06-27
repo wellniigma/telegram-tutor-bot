@@ -419,7 +419,7 @@ async def quote_day(callback: CallbackQuery):
     )
 
     await callback.answer()
-    
+
 @dp.callback_query(F.data == "history")
 async def history(callback: CallbackQuery):
     text, keyboard = build_history_text(callback.from_user.id, 0)
@@ -846,7 +846,7 @@ async def handle_custom_amount(message: Message):
             try:
                 await bot.send_message(
                     int(student_id),
-                    f"📢 Сообщение от преподавателя\n\n{text}"
+                    f"📢 Сообщение от босса\n\n{text}"
                 )
                 sent += 1
             except Exception:
