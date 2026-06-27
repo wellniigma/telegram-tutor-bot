@@ -253,14 +253,15 @@ def admin_menu():
     kb.button(text="👥 Все ученики", callback_data="admin_students")
     kb.button(text="➕ Добавить ученика", callback_data="add_student")
 
+    kb.button(text="📢 Рассылка", callback_data="broadcast_start")
     kb.button(text="👥 Список должников", callback_data="admin_debts")
-    kb.button(text="📊 Статистика", callback_data="admin_stats")
 
+    kb.button(text="📊 Статистика", callback_data="admin_stats")
     kb.button(text="📂 Перенести неделю в Архив", callback_data="archive_week")
 
     kb.button(text="🏠 В главное меню", callback_data="menu")
 
-    kb.adjust(2, 2, 1, 1)
+    kb.adjust(2, 2, 2, 1)
 
     return kb.as_markup()
 
@@ -485,6 +486,7 @@ waiting_for_amount = set()
 waiting_for_balance = {}
 waiting_for_new_student = {}
 waiting_for_edit_student = {}
+waiting_for_broadcast = set()
 
 @dp.callback_query(F.data == "pay_custom")
 async def pay_custom(callback: CallbackQuery):
@@ -780,10 +782,55 @@ async def edit_id(callback: CallbackQuery):
     await callback.message.edit_text("Введите новый Telegram ID ученика:")
     await callback.answer()
 
+@dp.callback_query(F.data == "broadcast_start")
+async def broadcast_start(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
+
+    waiting_for_broadcast.add(callback.from_user.id)
+
+    await callback.message.edit_text(
+        "Введите текст рассылки для всех учеников:"
+    )
+
+    await callback.answer()
+
 @dp.message()
 async def handle_custom_amount(message: Message):
     text = message.text.strip()
-    
+
+        if message.from_user.id in waiting_for_broadcast:
+        rows = attendance_sheet.get_all_records()
+
+        sent = 0
+        failed = 0
+
+        for student in rows:
+            student_id = student.get("ID ученика")
+
+            if not student_id:
+                continue
+
+            try:
+                await bot.send_message(
+                    int(student_id),
+                    f"📢 Сообщение от преподавателя\n\n{text}"
+                )
+                sent += 1
+            except Exception:
+                failed += 1
+
+        waiting_for_broadcast.discard(message.from_user.id)
+
+        await message.answer(
+            "Рассылка завершена ✅\n\n"
+            f"Отправлено: {sent}\n"
+            f"Не удалось отправить: {failed}",
+            reply_markup=admin_menu()
+        )
+        return
+
     if message.from_user.id in waiting_for_edit_student:
         data = waiting_for_edit_student[message.from_user.id]
         student_id = data["student_id"]
