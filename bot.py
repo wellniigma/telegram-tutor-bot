@@ -417,10 +417,13 @@ def build_history_text(user_id, page=0):
 async def quote_day(callback: CallbackQuery):
     quote = random.choice(DAY_QUOTES)
 
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🏠 В главное меню", callback_data="menu")
+    kb.adjust(1)
+
     await callback.message.edit_text(
-        f"💌 Цитата дня\n\n"
-        f"{quote}",
-        reply_markup=main_menu()
+        f"💌 Цитата дня\n\n{quote}",
+        reply_markup=kb.as_markup()
     )
 
     await callback.answer()
