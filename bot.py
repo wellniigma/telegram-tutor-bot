@@ -297,9 +297,9 @@ async def start(message: Message):
 
     if not student:
         await message.answer(
-            "Ваш Telegram ID не найден в таблице.\n\n"
+            "Босс пока не познакомил меня с вами 🥺\n\n"
             f"Ваш ID: {message.from_user.id}\n\n"
-            "Свяжитесь с преподавателем.",
+            "Свяжитесь с Алиюшкой",
             reply_markup=ReplyKeyboardRemove()
         )
         return
@@ -877,7 +877,7 @@ async def handle_custom_amount(message: Message):
 
         if step == "telegram_id":
             if not text.isdigit():
-                await message.answer("ID должен быть числом. Введите Telegram ID ученика:")
+                await message.answer("ID должен быть числом. Введи Telegram ID ученика:")
                 return
 
             data["telegram_id"] = text
@@ -893,7 +893,7 @@ async def handle_custom_amount(message: Message):
 
         if step == "duration":
             if text not in ("60", "90"):
-                await message.answer("Длительность должна быть 60 или 90. Введите ещё раз:")
+                await message.answer("Длительность должна быть 60 или 90, мэм. Введи ещё раз:")
                 return
 
             data["duration"] = text
@@ -919,7 +919,7 @@ async def handle_custom_amount(message: Message):
 
         if not text_for_amount.isdigit():
             await message.answer(
-                "Пожалуйста, введите сумму числом. Например: 2400",
+                "Пожалуйста, введи сумму числом. Например: 2400",
                 reply_markup=back_menu(),
             )
             return
@@ -999,7 +999,7 @@ async def paid_request(callback: CallbackQuery):
     student = find_student(callback.from_user.id)
 
     if not student:
-        await callback.answer("Ученик не найден.", show_alert=True)
+        await callback.answer("Ученик не найден, потерян", show_alert=True)
         return
 
     student_name = student.get("Имя ученика", "Без имени")
@@ -1338,7 +1338,7 @@ async def set_mark(callback: CallbackQuery):
 
     if row_number is None or col_number is None:
         await callback.message.edit_text(
-            "Не удалось найти ученика или день недели.",
+            "Не могу найти ученика или день недели.",
             reply_markup=admin_menu()
         )
         await callback.answer()
