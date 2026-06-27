@@ -326,30 +326,42 @@ def build_history_text(user_id, page=0):
     student = find_student(user_id)
 
     if not student:
-        return "Ваш Telegram ID не найден в таблице.", back_menu()
+        return (
+            "Босс пока не познакомил меня с вами 🥺\n\n"
+            f"Ваш ID: {user_id}\n\n"
+            "Свяжитесь с Алиюшкой"
+        ), back_menu()
 
     lessons, chargeable_total = build_history(student)
     balance = get_student_balance(user_id)
     debt = max(chargeable_total - balance, 0)
 
     if not lessons:
-        return "История занятий пока отсутствует.", back_menu()
+        return "👩🏻‍💻 История занятий\n\nПока тут пусто.", back_menu()
 
     remaining_balance = balance
     prepared = []
 
     for item in lessons:
+        title = item["title"]
+
+        if title == "Отмена заранее":
+            title = "Отмена заранее, респект"
+        elif title == "Дополнительное занятие / перенос":
+            title = "Доп. занятие / перенос"
+
         if item["need_pay"]:
             if remaining_balance >= item["price"]:
-                payment_status = "✅ Оплачено"
+                payment_status = "🟢 Оплачено"
                 remaining_balance -= item["price"]
             else:
-                payment_status = "🟡 Ожидает оплаты"
+                payment_status = "🟡 Ждёт оплаты"
         else:
-            payment_status = "🔴 Не оплачивается"
+            payment_status = "⚪ Не оплачивается"
 
         prepared.append({
             **item,
+            "title": title,
             "payment_status": payment_status
         })
 
@@ -360,22 +372,20 @@ def build_history_text(user_id, page=0):
     end = start + LESSONS_PER_PAGE
     page_items = prepared[start:end]
 
-    text = "📚 История занятий\n\n"
+    text = "👩🏻‍💻 История занятий\n\n━━━━━━━━━━━━━━\n\n"
 
     for item in page_items:
         text += (
             f"{item['payment_status']}\n\n"
-            f"📅 Дата: {item['date']}\n"
-            f"📖 Предмет: Обществознание\n"
-            f"📝 Тип: {item['title']}\n"
-            f"💰 Стоимость: {format_money(item['price'])}\n\n"
+            f"{item['date']} · {item['title']}\n"
+            f"{format_money(item['price'])}\n\n"
             "━━━━━━━━━━━━━━\n\n"
         )
 
     text += (
         f"💳 Баланс: {format_money(balance)}\n"
-        f"❗ К оплате: {format_money(debt)}\n\n"
-        f"Страница {page + 1} из {total_pages}"
+        f"🧾 К оплате: {format_money(debt)}\n\n"
+        f"── Страница {page + 1} / {total_pages} ──"
     )
 
     kb = InlineKeyboardBuilder()
