@@ -484,6 +484,7 @@ async def payment(callback: CallbackQuery):
 waiting_for_amount = set()
 waiting_for_balance = {}
 waiting_for_new_student = {}
+waiting_for_edit_student = {}
 
 @dp.callback_query(F.data == "pay_custom")
 async def pay_custom(callback: CallbackQuery):
@@ -709,6 +710,49 @@ async def add_student_start(callback: CallbackQuery):
 
     await callback.answer("Начинаем добавление ученика")
 
+@dp.callback_query(F.data.startswith("edit_name:"))
+async def edit_name(callback: CallbackQuery):
+    student_id = callback.data.split(":")[1]
+    waiting_for_edit_student[callback.from_user.id] = {
+        "student_id": student_id,
+        "field": "name"
+    }
+    await callback.message.edit_text("Введите новое имя ученика:")
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("edit_group:"))
+async def edit_group(callback: CallbackQuery):
+    student_id = callback.data.split(":")[1]
+    waiting_for_edit_student[callback.from_user.id] = {
+        "student_id": student_id,
+        "field": "group"
+    }
+    await callback.message.edit_text("Введите новую группу:")
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("edit_duration:"))
+async def edit_duration(callback: CallbackQuery):
+    student_id = callback.data.split(":")[1]
+    waiting_for_edit_student[callback.from_user.id] = {
+        "student_id": student_id,
+        "field": "duration"
+    }
+    await callback.message.edit_text("Введите новую длительность: 60 или 90")
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("edit_id:"))
+async def edit_id(callback: CallbackQuery):
+    student_id = callback.data.split(":")[1]
+    waiting_for_edit_student[callback.from_user.id] = {
+        "student_id": student_id,
+        "field": "telegram_id"
+    }
+    await callback.message.edit_text("Введите новый Telegram ID ученика:")
+    await callback.answer()
+    
 @dp.message()
 async def handle_custom_amount(message: Message):
     text = message.text.strip()
