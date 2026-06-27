@@ -634,6 +634,31 @@ async def balance_action(callback: CallbackQuery):
 
 def add_student_to_sheets(data):
     headers = attendance_sheet.row_values(1)
+    rows = attendance_sheet.get_all_values()
+
+    memo_row = None
+
+    for index, row in enumerate(rows, start=1):
+        row_text = " ".join([str(cell).strip() for cell in row])
+        if "Памятка" in row_text:
+            memo_row = index
+            break
+
+    if memo_row is None:
+        memo_row = len(rows) + 1
+
+    target_row = None
+
+    for index in range(2, memo_row):
+        row = rows[index - 1] if index - 1 < len(rows) else []
+        student_id = row[0] if len(row) > 0 else ""
+
+        if str(student_id).strip() == "":
+            target_row = index
+            break
+
+    if target_row is None:
+        target_row = memo_row
 
     new_attendance_row = []
 
@@ -653,17 +678,14 @@ def add_student_to_sheets(data):
         else:
             new_attendance_row.append("")
 
-    attendance_sheet.append_row(
-        new_attendance_row,
+    attendance_sheet.update(
+        f"A{target_row}:L{target_row}",
+        [new_attendance_row[:12]],
         value_input_option="USER_ENTERED"
     )
 
     balances_sheet.append_row(
-        [
-            data["telegram_id"],
-            data["name"],
-            0
-        ],
+        [data["telegram_id"], data["name"], 0],
         value_input_option="USER_ENTERED"
     )
     
@@ -1046,6 +1068,7 @@ async def student_card(callback: CallbackQuery):
     kb = InlineKeyboardBuilder()
     kb.button(text="📅 Отметить посещение", callback_data=f"mark_attendance:{student_id}")
     kb.button(text="💰 Изменить баланс", callback_data=f"balance_menu:{student_id}")
+    kb.button(text="🗑 Удалить ученика", callback_data=f"delete_student:{student_id}")
     kb.button(text="⬅️ К списку учеников", callback_data="admin_students")
     kb.button(text="🏠 В админку", callback_data="admin_back")
     kb.adjust(1)
@@ -1170,7 +1193,40 @@ async def set_mark(callback: CallbackQuery):
     callback.data = f"student:{student_id}"
     await student_card(callback)
 
+@dp.callback_query(F.data.startswith("delete_student:"))
+async def delete_student_confirm(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
 
+    student_id = callback.data.split(":")[1]
+    student = find_student(student_id)
+
+    if not student:
+        await callback.message.edit_text(
+            "Ученик не найден.",
+            reply_markup=admin_menu()
+        )
+        await callback.answer()
+        return
+
+    name = student.get("Имя ученика", "Без имени")
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Да, удалить", callback_data=f"delete_student_yes:{student_id}")
+    kb.button(text="⬅️ Нет, назад", callback_data=f"student:{student_id}")
+    kb.adjust(1)
+
+    await callback.message.edit_text(
+        f"Удалить ученика?\n\n"
+        f"👤 {name}\n"
+        f"ID: {student_id}\n\n"
+        f"Это удалит строку из «Посещаемость» и «Балансы».",
+        reply_markup=kb.as_markup()
+    )
+
+    await callback.answer()
+    
 async def main():
     await dp.start_polling(bot)
 
