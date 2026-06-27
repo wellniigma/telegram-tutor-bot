@@ -290,7 +290,7 @@ def get_main_text():
     )
 
 
-@@dp.message(Command("start"))
+@dp.message(Command("start"))
 async def start(message: Message):
     student = find_student(message.from_user.id)
 
