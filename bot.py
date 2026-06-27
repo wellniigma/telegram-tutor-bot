@@ -1192,11 +1192,35 @@ async def set_mark(callback: CallbackQuery):
 
     attendance_sheet.update_cell(row_number, col_number, mark)
 
+    mark_names = {
+        "1": "занятие проведено ✅",
+        "0": "занятие отменено заранее",
+        "-": "поздняя отмена",
+        "$": "дополнительное занятие / перенос",
+        "": "отметка очищена"
+    }
+
+    student = find_student(student_id)
+    lessons, chargeable_total = build_history(student)
+    balance = get_student_balance(student_id)
+    debt = max(chargeable_total - balance, 0)
+
+    if mark != "":
+        try:
+            await bot.send_message(
+                int(student_id),
+                f"📌 Обновление по занятию\n\n"
+                f"{day.capitalize()}: {mark_names[mark]}.\n\n"
+                f"Текущая задолженность: {format_money(debt)}"
+            )
+        except Exception:
+            pass
+
     await callback.answer("Отметка сохранена ✅", show_alert=False)
 
     callback.data = f"student:{student_id}"
     await student_card(callback)
-
+    
 @dp.callback_query(F.data.startswith("delete_student:"))
 async def delete_student_confirm(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
