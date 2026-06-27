@@ -249,12 +249,19 @@ def archive_current_week():
 
 def admin_menu():
     kb = InlineKeyboardBuilder()
+
     kb.button(text="👥 Все ученики", callback_data="admin_students")
+    kb.button(text="➕ Добавить ученика", callback_data="add_student")
+
     kb.button(text="👥 Список должников", callback_data="admin_debts")
     kb.button(text="📊 Статистика", callback_data="admin_stats")
+
     kb.button(text="📂 Перенести неделю в Архив", callback_data="archive_week")
+
     kb.button(text="🏠 В главное меню", callback_data="menu")
-    kb.adjust(1)
+
+    kb.adjust(2, 2, 1, 1)
+
     return kb.as_markup()
 
 
@@ -472,6 +479,7 @@ async def payment(callback: CallbackQuery):
 
 waiting_for_amount = set()
 waiting_for_balance = {}
+waiting_for_new_student = {}
 
 @dp.callback_query(F.data == "pay_custom")
 async def pay_custom(callback: CallbackQuery):
@@ -624,7 +632,23 @@ async def balance_action(callback: CallbackQuery):
 
     await callback.answer()
 
-@@dp.message()
+@dp.callback_query(F.data == "add_student")
+async def add_student_start(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Недоступно.", show_alert=True)
+        return
+
+    waiting_for_new_student[callback.from_user.id] = {
+        "step": "name"
+    }
+
+    await callback.message.edit_text(
+        "Введите имя ученика:"
+    )
+
+    await callback.answer()
+    
+@dp.message()
 async def handle_custom_amount(message: Message):
     text = message.text.strip().replace(" ", "").replace(",", ".")
 
