@@ -1026,7 +1026,7 @@ async def paid_request(callback: CallbackQuery):
 
     await callback.message.edit_text(
         "Спасибо! 💗\n\n"
-        "Платёж отправлен преподавателю на проверку.",
+        "Запрос на подтверждение оплаты отправлен боссу\n\n",
         reply_markup=back_menu(),
     )
 
