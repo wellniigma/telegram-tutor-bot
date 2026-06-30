@@ -12,6 +12,8 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from yookassa import Configuration, Payment
+import uuid
 
 logging.basicConfig(level=logging.INFO)
 
@@ -19,6 +21,11 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 ADMIN_ID = 810699186
 PAYMENT_URL = "https://example.com"
+YOOKASSA_SHOP_ID = os.getenv("YOOKASSA_SHOP_ID")
+YOOKASSA_SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY")
+
+Configuration.account_id = YOOKASSA_SHOP_ID
+Configuration.secret_key = YOOKASSA_SECRET_KEY
 DAY_QUOTES = [
     "Даже если кажется, что ничего не запоминается — мозг работает",
     "Отдых — часть подготовки, а не её враг",
@@ -990,9 +997,13 @@ async def handle_custom_amount(message: Message):
     amount = int(text_for_amount)
 
     waiting_for_amount.remove(message.from_user.id)
+    payment_url = create_yookassa_payment(
+        amount,
+        message.from_user.id
+    )
 
     kb = InlineKeyboardBuilder()
-    kb.button(text="💳 Оплатить", url=PAYMENT_URL)
+    kb.button(text="💳 Оплатить", url=payment_url)
     kb.button(text="✅ Миссия выполнена", callback_data=f"paid_request:{amount}")
     kb.button(text="🏠 В главное меню", callback_data="menu")
     kb.adjust(1)
@@ -1005,12 +1016,36 @@ async def handle_custom_amount(message: Message):
         reply_markup=kb.as_markup(),
     )
 
+def create_yookassa_payment(amount, student_id):
+    payment = Payment.create(
+        {
+            "amount": {
+                "value": f"{amount:.2f}",
+                "currency": "RUB"
+            },
+            "capture": True,
+            "confirmation": {
+                "type": "redirect",
+                "return_url": "https://t.me/saythankyou_bot"
+            },
+            "description": f"Оплата занятий ученика {student_id}"
+        },
+        str(uuid.uuid4())
+    )
+
+    return payment.confirmation.confirmation_url
+
 @dp.callback_query(F.data.startswith("pay_debt:"))
 async def pay_debt(callback: CallbackQuery):
-    amount = callback.data.split(":")[1]
+    amount = int(callback.data.split(":")[1])
+
+    payment_url = create_yookassa_payment(
+        amount,
+        callback.from_user.id
+    )
 
     kb = InlineKeyboardBuilder()
-    kb.button(text="💳 Оплатить", url=PAYMENT_URL)
+    kb.button(text="💳 Оплатить", url=payment_url)
     kb.button(text="✅ Миссия выполнена", callback_data=f"paid_request:{amount}")
     kb.button(text="🏠 В главное меню", callback_data="menu")
     kb.adjust(1)
@@ -1019,7 +1054,7 @@ async def pay_debt(callback: CallbackQuery):
         "Спасибо за доверие 💗\n\n"
         "Оплата доступна по кнопке ниже ⬇️\n\n"
         f"Сумма: {format_money(amount)}\n\n"
-         "После оплаты нажми кнопку «Миссия выполнена».",
+        "После оплаты нажми кнопку «Миссия выполнена».",
         reply_markup=kb.as_markup(),
     )
 
