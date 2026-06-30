@@ -23,6 +23,8 @@ ADMIN_ID = 810699186
 PAYMENT_URL = "https://example.com"
 YOOKASSA_SHOP_ID = os.getenv("YOOKASSA_SHOP_ID")
 YOOKASSA_SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY")
+print("YOOKASSA_SHOP_ID:", YOOKASSA_SHOP_ID)
+print("YOOKASSA_SECRET_KEY exists:", bool(YOOKASSA_SECRET_KEY))
 
 Configuration.account_id = YOOKASSA_SHOP_ID
 Configuration.secret_key = YOOKASSA_SECRET_KEY
