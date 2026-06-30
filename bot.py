@@ -20,7 +20,6 @@ logging.basicConfig(level=logging.INFO)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 ADMIN_ID = 810699186
-PAYMENT_URL = "https://example.com"
 YOOKASSA_SHOP_ID = os.getenv("YOOKASSA_SHOP_ID")
 YOOKASSA_SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY")
 
@@ -135,6 +134,8 @@ def build_history(student):
     duration = student.get("Длительность")
 
     lesson_price = get_lesson_price(group_name, duration)
+    discount = int(student.get("Скидка") or 0)
+    lesson_price = max(lesson_price - discount, 0)
 
     chargeable_total = 0
 
@@ -144,6 +145,7 @@ def build_history(student):
         "Группа",
         "Длительность",
         "Макс. кол-во занятий",
+        "Скидка",
     ]
 
     for column, value in student.items():
